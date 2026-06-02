@@ -1,4 +1,4 @@
-import { runJson } from '@/lib/llm'
+import { runJson, resolveModel } from '@/lib/llm'
 import type {
   DemandStats,
   EvidenceBundle,
@@ -125,7 +125,7 @@ ${evidenceToMarkdown(bundle)}
 }
 要求：恰好 ${size} 条；score 为 1-5 的整数；分数要真实分散；believability 在 0-1。`
 
-    const raw = await runJson<{ responses: PersonaResponse[] }>(SYSTEM, user, 6000, 0.8)
+    const raw = await runJson<{ responses: PersonaResponse[] }>(SYSTEM, user, 6000, 0.8, resolveModel(input.model))
 
     // believability gate (TinyPersonValidator-style): drop incoherent personas < 0.5,
     // but never collapse the panel below a usable floor.

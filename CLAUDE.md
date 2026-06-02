@@ -45,7 +45,13 @@ lib/
 ## Key conventions
 
 - All LLM calls server-side in `app/api/*/route.ts` via `lib/llm.ts`. Never call from client.
-- Model ID `deepseek-v4-flash` is the constant `MODEL` in `lib/llm.ts`. Change in one place.
+- DeepSeek models are user-selectable per run. The list lives in `MODELS` in `lib/types.ts`
+  (verified live from `GET https://api.deepseek.com/models` — do not edit by memory). The UI picker
+  sets `IdeaInput.model`; each route passes `resolveModel(input.model)` (validates + falls back to
+  `DEFAULT_MODEL`) into `runJson`. `deepseek-v4-flash` is the default; `deepseek-v4-pro` is the
+  stronger but much slower tier (~250s for a single stage observed locally).
+- Deployment note: a full Pro-tier run can take several minutes. On Vercel, set `maxDuration` on the
+  route handlers (and a paid plan) or the function will time out; Flash is fine on default limits.
 - Routes return JSON; errors as plain-text non-200. JSON mode via `response_format`.
 - DemandStats are computed in the route (one source of truth), not re-derived in the UI.
 - UI strings 中文; Gestalt + HIG tokens from `tailwind.config.ts` (mirrors StyleForge). No dashes.

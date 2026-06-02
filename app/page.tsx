@@ -6,8 +6,9 @@ import {
   TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope,
 } from 'lucide-react'
 import type {
-  EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord,
+  EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord, DeepSeekModel,
 } from '@/lib/types'
+import { MODELS, DEFAULT_MODEL } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // LaunchLens single-page app. Three-stage pipeline driven from one client component:
@@ -49,6 +50,7 @@ export default function Page() {
   const [scope, setScope] = useState<MarketScope>('global')
   const [icpHints, setIcpHints] = useState('')
   const [panelSize, setPanelSize] = useState(12)
+  const [model, setModel] = useState<DeepSeekModel>(DEFAULT_MODEL)
 
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState('')
@@ -76,7 +78,7 @@ export default function Page() {
     }
     setError('')
     setBundle(null); setPanel(null); setVerdict(null)
-    const input: IdeaInput = { idea, market, scope, icpHints, panelSize }
+    const input: IdeaInput = { idea, market, scope, icpHints, panelSize, model }
 
     try {
       setStage('grounding')
@@ -186,6 +188,19 @@ export default function Page() {
             <input type="range" min={6} max={24} step={1} value={panelSize}
               onChange={(e) => setPanelSize(+e.target.value)}
               className="w-full accent-pushpin-450" />
+          </Field>
+          <Field label="推理模型 (DeepSeek)">
+            <div className="flex gap-100 p-100 rounded-200 bg-roboflow-100">
+              {MODELS.map((m) => (
+                <button key={m.id} onClick={() => setModel(m.id)} disabled={running}
+                  className={`flex-1 py-200 rounded-100 transition-all disabled:opacity-50 ${
+                    model === m.id ? 'bg-mochimalist shadow-floating' : ''
+                  }`}>
+                  <span className={`block text-200 font-semibold ${model === m.id ? 'text-cosmicore' : 'text-roboflow-500'}`}>{m.label}</span>
+                  <span className={`block text-100 ${model === m.id ? 'text-roboflow-500' : 'text-roboflow-400'}`}>{m.hint}</span>
+                </button>
+              ))}
+            </div>
           </Field>
 
           <button onClick={run} disabled={running}

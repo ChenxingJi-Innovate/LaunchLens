@@ -1,4 +1,4 @@
-import { runJson } from '@/lib/llm'
+import { runJson, resolveModel } from '@/lib/llm'
 import type { DemandStats, EvidenceBundle, IdeaInput, Verdict } from '@/lib/types'
 
 // ============================================================================
@@ -65,7 +65,7 @@ ${demandSummary}
   ]
 }`
 
-    const raw = await runJson<Verdict>(SYSTEM, user, 2500, 0.45)
+    const raw = await runJson<Verdict>(SYSTEM, user, 2500, 0.45, resolveModel(input.model))
     const verdict: Verdict = {
       call: (['validated', 'conditional', 'kill'].includes(raw.call) ? raw.call : 'conditional') as Verdict['call'],
       rationale: raw.rationale ?? '',

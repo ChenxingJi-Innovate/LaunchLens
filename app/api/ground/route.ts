@@ -1,4 +1,4 @@
-import { runJson, clampReliability } from '@/lib/llm'
+import { runJson, clampReliability, resolveModel } from '@/lib/llm'
 import type { EvidenceBundle, IdeaInput } from '@/lib/types'
 
 // ============================================================================
@@ -84,7 +84,7 @@ ${input.icpHints ? `目标客户线索：${input.icpHints}` : ''}${live}
 }
 要求：experts 必须四个 lens 各一条；sources 给 4-7 条；reliability 0-1 之间，与 tier 相符。`
 
-    const raw = await runJson<RawBundle>(SYSTEM, user, 3500, 0.5)
+    const raw = await runJson<RawBundle>(SYSTEM, user, 3500, 0.5, resolveModel(input.model))
 
     // Server-side credibility clamping so the UI/verdict trust one honest band per tier.
     const bundle: EvidenceBundle = {

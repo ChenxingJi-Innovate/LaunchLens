@@ -3,6 +3,19 @@
 // with a DEMAND-side simulation (TinyTroupe-style synthetic customer panel), then forces
 // one honest verdict through a contradiction meta-judge.
 
+// ---------- Models ----------
+// DeepSeek model IDs verified live from GET https://api.deepseek.com/models
+// (do not edit by memory; re-query the endpoint if DeepSeek adds tiers).
+
+export type DeepSeekModel = 'deepseek-v4-flash' | 'deepseek-v4-pro'
+
+export const MODELS: { id: DeepSeekModel; label: string; hint: string }[] = [
+  { id: 'deepseek-v4-flash', label: 'V4 Flash', hint: '更快 · 推荐' },
+  { id: 'deepseek-v4-pro', label: 'V4 Pro', hint: '更细致 · 较慢' },
+]
+
+export const DEFAULT_MODEL: DeepSeekModel = 'deepseek-v4-flash'
+
 // ---------- PM input ----------
 
 export type MarketScope = 'china' | 'global' | 'overseas'
@@ -13,6 +26,7 @@ export interface IdeaInput {
   scope: MarketScope
   icpHints?: string // optional ideal-customer hints to steer audience sampling
   panelSize: number // how many synthetic customers to simulate (default 12)
+  model?: DeepSeekModel // which DeepSeek tier to run the whole pipeline on
 }
 
 // ---------- (A) Ground: supply-side evidence ----------

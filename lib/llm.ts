@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { DEFAULT_MODEL, MODELS, type DeepSeekModel } from './types'
 
 // Single DeepSeek client for all server-side reasoning, matching the workspace convention
 // (StyleForge / SQLForge / StratSquad all point the openai SDK at the DeepSeek endpoint).
@@ -15,7 +16,13 @@ export function getClient(): OpenAI {
   return _client
 }
 
-export const MODEL = 'deepseek-v4-flash'
+export const MODEL: DeepSeekModel = DEFAULT_MODEL
+
+// Validate a client-supplied model string against the known list; fall back to default.
+// Never trust the request body to name an arbitrary model.
+export function resolveModel(m?: string): DeepSeekModel {
+  return MODELS.some((x) => x.id === m) ? (m as DeepSeekModel) : DEFAULT_MODEL
+}
 
 // Blocking JSON-mode call. Returns the parsed object of type T.
 // We defensively strip markdown fences in case the model wraps its JSON.
@@ -24,9 +31,10 @@ export async function runJson<T>(
   user: string,
   maxTokens = 4000,
   temperature = 0.5,
+  model: DeepSeekModel = MODEL,
 ): Promise<T> {
   const r = await getClient().chat.completions.create({
-    model: MODEL,
+    model,
     max_tokens: maxTokens,
     temperature,
     response_format: { type: 'json_object' },
