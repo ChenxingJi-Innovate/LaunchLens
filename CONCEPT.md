@@ -1,4 +1,4 @@
-# Quorum — Product Idea Validation Platform for PMs
+# LaunchLens — Product Idea Validation Platform for PMs
 
 A sibling project that fuses **StratSquad** (grounded supply-side market intelligence) with
 **TinyTroupe** (synthetic demand-side customer simulation) into one decision: *should we
@@ -21,7 +21,7 @@ A product manager validating an idea needs two answers that today live in two di
 
 Neither alone validates a product idea. StratSquad can say "the category is up 40% YoY" while the
 actual buyers reject your specific take. TinyTroupe can report "62% would buy" while imagining a
-market that no longer exists. **Quorum chains them: real evidence grounds the synthetic panel,
+market that no longer exists. **LaunchLens chains them: real evidence grounds the synthetic panel,
 and one trust layer scores both halves.**
 
 ---
@@ -105,7 +105,7 @@ market report." It is one connector wiring, and it is the whole product.
         is_there_a_good_market() → go / pivot / kill, by segment
         SimulationExperimentEmpiricalValidator → if PM uploads any real survey,
             t-test/KS the synthetic vs real → calibration confidence badge
-        Quorum meta-judge: cross-checks demand verdict against supply verdict,
+        LaunchLens meta-judge: cross-checks demand verdict against supply verdict,
             flags contradictions ("market up, but personas reject on price")
         │
         ▼
@@ -120,7 +120,7 @@ market report." It is one connector wiring, and it is the whole product.
 
 ## 5. The unified trust layer (why a PM should believe it)
 
-Quorum's credibility is the product. Three stacked checks, each inherited:
+LaunchLens's credibility is the product. Three stacked checks, each inherited:
 
 | Check | Source | Guards against |
 |---|---|---|
@@ -147,7 +147,7 @@ resolve the disagreement.
   `GroundingConnector` documents. This is the only new core code.
 - **MCP:** expose `validate_idea`, `simulate_panel`, `ground_audience` alongside StratSquad's tools.
 - **Env:** `DEEPSEEK_API_KEY`, `SILICONFLOW_API_KEY` (inherited), `VISION_API_KEY/BASE_URL/MODEL`,
-  plus trend-source keys per StratSquad's registry. Keep `reference_quorum_keys.md` in sync.
+  plus trend-source keys per StratSquad's registry. Keep `reference_launchlens_keys.md` in sync.
 
 ---
 

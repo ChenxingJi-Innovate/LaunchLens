@@ -1,10 +1,10 @@
-# Quorum
+# LaunchLens
 
 > 让市场与用户共同为你的产品想法投票。
 > Product idea validation for PMs: a grounded market read (supply) fused with a synthetic
 > customer panel (demand), reconciled by a contradiction meta-judge.
 
-Quorum combines the good ideas from two projects:
+LaunchLens combines the good ideas from two projects:
 
 - **StratSquad** (supply side) — grounded market intelligence: four analyst lenses
   (competitor / trend / market / risk) and source-credibility tiering.

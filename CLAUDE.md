@@ -1,4 +1,4 @@
-# Quorum
+# LaunchLens
 
 > Product idea validation for PMs. Fuses a SUPPLY-side market read (StratSquad-style grounded
 > intelligence) with a DEMAND-side synthetic customer panel (TinyTroupe-style simulation), then
@@ -23,7 +23,7 @@ and `./CONCEPT.md` for the full product rationale and the two source projects it
 ## The one idea that matters
 
 Every persona reads the supply-side `EvidenceBundle` before answering (see `evidenceToMarkdown` in
-`app/api/panel/route.ts`). That grounding is what separates Quorum from "a focus group in a vacuum".
+`app/api/panel/route.ts`). That grounding is what separates LaunchLens from "a focus group in a vacuum".
 It is the seam where StratSquad and TinyTroupe join.
 
 ## File layout

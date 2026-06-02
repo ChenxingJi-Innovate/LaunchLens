@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import {
   Activity, Users, Scale, Download, Loader2, AlertTriangle,
-  TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot,
+  TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope,
 } from 'lucide-react'
 import type {
   EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord,
 } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
-// Quorum single-page app. Three-stage pipeline driven from one client component:
+// LaunchLens single-page app. Three-stage pipeline driven from one client component:
 //   (A) Ground  → supply-side evidence bundle
 //   (B/C) Panel → demand-side synthetic customer survey, grounded in (A)
 //   (D) Verdict → contradiction meta-judge → one honest call + export
@@ -122,7 +122,7 @@ export default function Page() {
     const blob = new Blob([JSON.stringify(rec)], { type: 'application/jsonl' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'quorum-validation.jsonl'
+    a.download = 'launchlens-validation.jsonl'
     a.click()
   }
 
@@ -132,11 +132,11 @@ export default function Page() {
       <header className="mb-900">
         <div className="flex items-center gap-300 mb-300">
           <div className="w-1000 h-1000 rounded-300 bg-cosmicore grid place-items-center shadow-raised">
-            <Scale className="w-600 h-600 text-mochimalist" strokeWidth={1.75} />
+            <Telescope className="w-600 h-600 text-mochimalist" strokeWidth={1.75} />
           </div>
           <div>
-            <h1 className="text-600 font-bold tracking-tight leading-none">Quorum</h1>
-            <p className="text-200 text-roboflow-500 mt-100">让市场与用户共同为你的产品想法投票</p>
+            <h1 className="text-600 font-bold tracking-tight leading-none">LaunchLens</h1>
+            <p className="text-200 text-roboflow-500 mt-100">市场视角 + 用户视角，上线前一次看清你的产品想法</p>
           </div>
         </div>
         <p className="text-300 text-roboflow-600 max-w-[640px] leading-relaxed">

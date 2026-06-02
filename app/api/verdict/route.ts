@@ -4,7 +4,7 @@ import type { DemandStats, EvidenceBundle, IdeaInput, Verdict } from '@/lib/type
 // ============================================================================
 // (D) VERDICT — the contradiction meta-judge.
 //
-// This is the one net-new agent in Quorum (it exists in neither StratSquad nor
+// This is the one net-new agent in LaunchLens (it exists in neither StratSquad nor
 // TinyTroupe). It reads the SUPPLY verdict (is the market moving toward this?)
 // and the DEMAND signal (would real customers buy it?) and forces a single
 // honest call. Its whole job is to surface the dangerous case where the two
@@ -12,7 +12,7 @@ import type { DemandStats, EvidenceBundle, IdeaInput, Verdict } from '@/lib/type
 // to name the cheapest real-world experiment that would settle the doubt.
 // ============================================================================
 
-const SYSTEM = `你是 Quorum 的"矛盾仲裁官"（contradiction meta-judge）。
+const SYSTEM = `你是 LaunchLens 的"矛盾仲裁官"（contradiction meta-judge）。
 你拿到两份相互独立的判断：
 1) 供给侧：市场是否在朝这个方向走（来自市场情报引擎）。
 2) 需求侧：真实潜在客户是否愿意买（来自合成客群打分）。

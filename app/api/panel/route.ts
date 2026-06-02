@@ -10,7 +10,7 @@ import type {
 // ============================================================================
 // (B+C) PANEL — demand-side synthetic customer simulation.
 //
-// This is Quorum's TinyTroupe half, condensed. The full TinyTroupe samples a
+// This is LaunchLens's TinyTroupe half, condensed. The full TinyTroupe samples a
 // population via TinyPersonFactory, gates each persona with TinyPersonValidator,
 // runs them in a TinyWorld, then mines answers with ResultsExtractor. Here we do
 // the equivalent in one grounded structured pass: derive a representative panel
@@ -22,7 +22,7 @@ import type {
 // demand signal is grounded in the real market read, not imagined in a vacuum.
 // ============================================================================
 
-const SYSTEM = `你是 Quorum 的需求侧合成客群引擎，等价于 TinyTroupe 的人群工厂 + 调研提取。
+const SYSTEM = `你是 LaunchLens 的需求侧合成客群引擎，等价于 TinyTroupe 的人群工厂 + 调研提取。
 你要"召唤"一组真实可信、彼此不同的潜在客户人物（persona），让他们针对一个产品想法独立打分。
 原则：
 - 覆盖目标市场的主要细分，并刻意纳入极端样本（价格极敏感者、重度老玩家、完全不感兴趣者），以暴露边缘反对意见。

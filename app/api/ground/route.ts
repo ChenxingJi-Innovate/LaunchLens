@@ -4,7 +4,7 @@ import type { EvidenceBundle, IdeaInput } from '@/lib/types'
 // ============================================================================
 // (A) GROUND — supply-side market evidence.
 //
-// This is Quorum's StratSquad half, condensed. Where the full StratSquad runs a
+// This is LaunchLens's StratSquad half, condensed. Where the full StratSquad runs a
 // LangGraph fan-out of four ReAct experts over live trend feeds + a BGE-M3 RAG
 // corpus, here we reason the same four lenses (competitor / trend / market / risk)
 // in one structured pass and tier every cited source by credibility.
@@ -15,7 +15,7 @@ import type { EvidenceBundle, IdeaInput } from '@/lib/types'
 // prompt with live tool results first (best-effort, never fatal).
 // ============================================================================
 
-const SYSTEM = `你是 Quorum 的供给侧市场情报引擎。你扮演四位资深游戏/消费产品分析师：
+const SYSTEM = `你是 LaunchLens 的供给侧市场情报引擎。你扮演四位资深游戏/消费产品分析师：
 - competitor（竞争与差异化）
 - trend（品类趋势与玩家迁移）
 - market（市场规模、分区、变现）

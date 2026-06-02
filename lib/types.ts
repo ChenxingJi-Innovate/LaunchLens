@@ -1,4 +1,4 @@
-// Quorum shared types.
+// LaunchLens shared types.
 // The product fuses a SUPPLY-side read (StratSquad-style grounded market intelligence)
 // with a DEMAND-side simulation (TinyTroupe-style synthetic customer panel), then forces
 // one honest verdict through a contradiction meta-judge.
