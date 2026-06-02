@@ -16,7 +16,8 @@ export function ragEnabled(): boolean {
 function authHeaders() {
   return {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${process.env.SILICONFLOW_API_KEY}`,
+    // .trim() guards against a trailing newline pasted into a dashboard env var
+    Authorization: `Bearer ${process.env.SILICONFLOW_API_KEY?.trim()}`,
   }
 }
 

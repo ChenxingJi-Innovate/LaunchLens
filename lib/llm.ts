@@ -9,7 +9,9 @@ let _client: OpenAI | null = null
 export function getClient(): OpenAI {
   if (!_client) {
     _client = new OpenAI({
-      apiKey: process.env.DEEPSEEK_API_KEY,
+      // .trim() guards against a trailing space/newline pasted into a hosting
+      // dashboard env var (a common cause of spurious 401s in production).
+      apiKey: process.env.DEEPSEEK_API_KEY?.trim(),
       baseURL: 'https://api.deepseek.com',
     })
   }
