@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Activity, Users, Scale, Download, Loader2, AlertTriangle,
   TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope, Languages,
-  BookOpen, Plus, Trash2, FileText,
+  BookOpen, Plus, Trash2, FileText, Lightbulb,
 } from 'lucide-react'
 import type {
   EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord, DeepSeekModel, UserChunk,
@@ -96,6 +96,14 @@ export default function Page() {
   }
   function clearKb() {
     setKbChunks([]); persistKb([])
+  }
+  // one-click: fill the form with the localized sample question
+  function fillSample() {
+    setIdea(t.sample.idea)
+    setMarket(t.sample.market)
+    setScope(t.sample.scope)
+    setIcpHints(t.sample.icpHints)
+    setError('')
   }
   // group chunks by source document for the chip list
   const kbSources = Array.from(
@@ -210,6 +218,11 @@ export default function Page() {
               placeholder={t.ideaPlaceholder}
               className="w-full resize-none rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
+            <button type="button" onClick={fillSample} disabled={running}
+              className="mt-200 inline-flex items-center gap-100 rounded-pill border border-pushpin-200 bg-pushpin-0 px-300 py-100 text-100 font-semibold text-pushpin-450 hover:bg-pushpin-50 disabled:opacity-50 transition-colors">
+              <Lightbulb className="w-300 h-300" />
+              <span className="text-roboflow-500 font-normal">{t.sampleLabel}：</span>{t.sampleChip}
+            </button>
           </Field>
           <Field label={t.marketLabel}>
             <input

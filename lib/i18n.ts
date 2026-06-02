@@ -22,6 +22,10 @@ export interface Dict {
   scopeLabel: string
   icpLabel: string
   icpPlaceholder: string
+  // one-click sample that fills the form
+  sampleLabel: string
+  sampleChip: string
+  sample: { idea: string; market: string; scope: MarketScope; icpHints: string }
   panelLabel: (n: number) => string
   modelLabel: string
   // knowledge base (RAG)
@@ -98,6 +102,14 @@ const zh: Dict = {
   scopeLabel: '市场范围 (Scope)',
   icpLabel: '目标客户线索 (可选)',
   icpPlaceholder: '例：价格敏感、重度使用短视频',
+  sampleLabel: '试试示例',
+  sampleChip: '王者荣耀 · 出海东南亚',
+  sample: {
+    idea: '推出《王者荣耀》东南亚定制版手游：本地化英雄与皮肤、低配安卓机型优化、接入本地支付与赛事直播生态',
+    market: '东南亚 MOBA 手游玩家（以印尼、菲律宾、泰国为主，18–30 岁）',
+    scope: 'overseas',
+    icpHints: '价格敏感、低端安卓为主、重度短视频与直播用户、偏好本地化内容与社交开黑',
+  },
   panelLabel: (n) => `合成客群规模：${n} 人`,
   modelLabel: '推理模型 (DeepSeek)',
   kbLabel: '知识库 (RAG · 可选)',
@@ -167,6 +179,14 @@ const en: Dict = {
   scopeLabel: 'Market scope',
   icpLabel: 'Ideal-customer hints (optional)',
   icpPlaceholder: 'e.g. price-sensitive, heavy short-video users',
+  sampleLabel: 'Try an example',
+  sampleChip: 'Honor of Kings · SEA launch',
+  sample: {
+    idea: 'Launch a Southeast-Asia edition of Honor of Kings (mobile MOBA): localized heroes and skins, low-end Android optimization, local payment rails and an esports-livestream ecosystem',
+    market: 'SEA mobile MOBA players (mainly Indonesia, Philippines, Thailand; ages 18–30)',
+    scope: 'overseas',
+    icpHints: 'price-sensitive, mostly low-end Android, heavy short-video & livestream users, prefer localized content and squad play',
+  },
   panelLabel: (n) => `Panel size: ${n} people`,
   modelLabel: 'Reasoning model (DeepSeek)',
   kbLabel: 'Knowledge base (RAG · optional)',
