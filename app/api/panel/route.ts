@@ -9,27 +9,33 @@ import type {
 } from '@/lib/types'
 
 // ============================================================================
-// (B+C) PANEL — demand-side synthetic customer simulation.
+// (B+C) PANEL — demand-side synthetic customer simulation, TinyTroupe-style.
 //
-// This is LaunchLens's TinyTroupe half, condensed. The full TinyTroupe samples a
-// population via TinyPersonFactory, gates each persona with TinyPersonValidator,
-// runs them in a TinyWorld, then mines answers with ResultsExtractor. Here we do
-// the equivalent in one grounded structured pass: derive a representative panel
-// from the market read, oversample extremes for fringe objections, and have each
-// persona privately rate adoption propensity (survey mode, broadcast=False) while
-// reasoning over the supply-side evidence bundle.
-//
-// THE KEY MOVE: every persona reads the evidence bundle before answering, so the
-// demand signal is grounded in the real market read, not imagined in a vacuum.
+// This mirrors TinyTroupe's actual architecture rather than collapsing it:
+//   Phase 1 (factory)  — one planning call samples a diverse population of N
+//                        persona SPECS (TinyPersonFactory.generate_people),
+//                        oversampling extremes for fringe objections.
+//   Phase 2 (acting)   — each persona then answers on its OWN independent LLM
+//                        call (TinyPerson.act in survey mode, broadcast=False):
+//                        it sees only its own spec + the market evidence, never
+//                        the other personas. Calls run in parallel.
+// Each persona self-reports a believability score (TinyPersonValidator-style
+// coherence gate). The result is genuinely separate agents, not one generation.
 // ============================================================================
 
-const SYSTEM = `你是 LaunchLens 的需求侧合成客群引擎，等价于 TinyTroupe 的人群工厂 + 调研提取。
-你要"召唤"一组真实可信、彼此不同的潜在客户人物（persona），让他们针对一个产品想法独立打分。
+// Phase 1: the factory plans and instantiates a representative population.
+const FACTORY_SYSTEM = `你是 TinyTroupe 式的人群工厂 (TinyPersonFactory)。
+根据市场证据，规划并生成一组彼此不同、覆盖目标市场主要细分的潜在客户人物档案 (persona spec)。
 原则：
-- 覆盖目标市场的主要细分，并刻意纳入极端样本（价格极敏感者、重度老玩家、完全不感兴趣者），以暴露边缘反对意见。
-- 每个 persona 必须先读"市场证据"，其打分理由应尽量引用其中的真实情况，而不是凭空想象。
-- 打分要分散、真实，允许出现低分。不要让所有人都给高分。
-- believability 表示这个 persona 是否自洽可信（0-1），明显套路化/不可信的给低分。`
+- 人群构成应大体反映真实市场比例：主流细分占多数；仅纳入 1-2 个极端样本（如价格极敏感者或明确非目标用户）用于暴露边缘意见，不要让极端/负面样本占多数。
+- 每个档案要具体可信：有姓名、一句话人设、所属细分，以及 2-3 句人物小传（性格、消费/使用习惯、对该品类的既有态度与处境）。
+- 只产出人物档案，不要让他们现在就作答。`
+
+// Phase 2: a single persona acts on its own, independent of the others.
+const ACT_SYSTEM = `你现在就【是】下面这位潜在客户本人，用第一人称思考。
+你只代表你自己，独立判断，并不知道其他人怎么想。
+基于你的人设处境 + 给定的真实市场情况，诚实决定你会不会采用/购买这个产品。
+诚实打分：既不要为讨好而抬高，也不要刻意唱衰；完全按你这个人的真实处境与偏好给分。要引用你自己的处境和市场事实来解释。`
 
 function evidenceToMarkdown(b: EvidenceBundle): string {
   const experts = b.experts
@@ -90,6 +96,36 @@ function computeStats(rs: PersonaResponse[]): DemandStats {
   }
 }
 
+interface PersonaSpec {
+  name: string
+  archetype: string
+  segment: string
+  persona: string // 2-3 sentence bio: traits, habits, prior attitude to the category
+}
+
+interface ActAnswer {
+  score: number
+  justification: string
+  objection: string
+  believability: number
+}
+
+// Run async tasks with bounded concurrency (so N personas don't all hit the API at once).
+async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let idx = 0
+  async function worker() {
+    while (idx < items.length) {
+      const cur = idx++
+      out[cur] = await fn(items[cur], cur)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return out
+}
+
+const CONCURRENCY = 8
+
 export async function POST(req: Request) {
   try {
     const { input, bundle } = (await req.json()) as {
@@ -99,44 +135,78 @@ export async function POST(req: Request) {
     if (!input?.idea?.trim() || !bundle) return new Response('Missing input/bundle', { status: 400 })
 
     const size = Math.max(6, Math.min(24, input.panelSize || 12))
+    const model = resolveModel(input.model)
+    const lang = input.lang === 'en' ? 'en' : 'zh'
+    const evidence = evidenceToMarkdown(bundle)
 
-    const user = `产品想法：${input.idea}
+    // ---- Phase 1: factory plans the population (one call) ----
+    const factoryUser = `产品想法：${input.idea}
 目标市场：${input.market}（范围：${input.scope}）
 ${input.icpHints ? `目标客户线索：${input.icpHints}` : ''}
 
-===== 市场证据（每个 persona 必须基于此作答）=====
-${evidenceToMarkdown(bundle)}
-===============================================
+===== 市场证据（用于规划贴近真实的人群）=====
+${evidence}
+===========================================
 
-请生成 ${size} 位潜在客户 persona，并让每人对"是否会采用/购买这个产品"打分。
-严格输出 JSON：
+请规划并生成恰好 ${size} 位潜在客户的人物档案。严格输出 JSON：
 {
-  "responses": [
-    {
-      "name": "中文名",
-      "archetype": "一句话人设标签，如 '价格敏感的休闲手游玩家'",
-      "segment": "所属细分市场，如 '东南亚学生党'",
-      "believability": 0.0,
-      "score": 1,
-      "justification": "为什么给这个分，尽量引用上面的市场证据",
-      "objection": "他/她不买的最大单一理由（即使打高分也要写）"
-    }
+  "personas": [
+    { "name": "姓名", "archetype": "一句话人设标签", "segment": "所属细分市场", "persona": "2-3句人物小传：性格、消费/使用习惯、对该品类的既有态度与处境" }
   ]
 }
-要求：恰好 ${size} 条；score 为 1-5 的整数；分数要真实分散；believability 在 0-1。
-${langInstruction(input.lang === 'en' ? 'en' : 'zh')}`
+要求：恰好 ${size} 条；彼此差异明显；覆盖主要细分并包含极端样本。
+${langInstruction(lang)}`
 
-    const raw = await runJson<{ responses: PersonaResponse[] }>(SYSTEM, user, 6000, 0.8, resolveModel(input.model))
+    const factory = await runJson<{ personas: PersonaSpec[] }>(FACTORY_SYSTEM, factoryUser, 4000, 0.9, model)
+    const specs = (factory.personas ?? []).slice(0, size)
+    if (specs.length === 0) return new Response('factory produced no personas', { status: 502 })
+
+    // ---- Phase 2: each persona acts independently (parallel, bounded) ----
+    const answered = await mapLimit(specs, CONCURRENCY, async (spec) => {
+      const actUser = `【你的人设】
+姓名：${spec.name}
+人设：${spec.archetype}
+细分：${spec.segment}
+小传：${spec.persona}
+
+【你了解到的市场情况】
+${evidence}
+
+【产品想法】${input.idea}（目标市场：${input.market}）
+
+作为这位客户本人，独立决定你会不会采用/购买。严格输出 JSON：
+{
+  "score": 1,
+  "justification": "第一人称解释你为什么给这个分，引用你的处境和市场事实",
+  "objection": "你最大的单一不买理由（即使打高分也要写）",
+  "believability": 0.0
+}
+要求：score 为 1-5 整数；believability(0-1) 是你对这个人设/回答自洽可信度的自评。
+${langInstruction(lang)}`
+      try {
+        const a = await runJson<ActAnswer>(ACT_SYSTEM, actUser, 900, 0.85, model)
+        const r: PersonaResponse = {
+          name: spec.name,
+          archetype: spec.archetype,
+          segment: spec.segment,
+          score: Math.max(1, Math.min(5, Math.round(a.score))) as PersonaResponse['score'],
+          justification: a.justification ?? '',
+          objection: a.objection ?? '',
+          believability: Math.max(0, Math.min(1, a.believability ?? 0.6)),
+        }
+        return r
+      } catch {
+        return null // a single agent failing must not sink the whole panel
+      }
+    })
+
+    const all = answered.filter((r): r is PersonaResponse => r !== null)
+    if (all.length === 0) return new Response('all personas failed to respond', { status: 502 })
 
     // believability gate (TinyPersonValidator-style): drop incoherent personas < 0.5,
     // but never collapse the panel below a usable floor.
-    const all = (raw.responses ?? []).map((r) => ({
-      ...r,
-      score: Math.max(1, Math.min(5, Math.round(r.score))) as PersonaResponse['score'],
-      believability: Math.max(0, Math.min(1, r.believability ?? 0.6)),
-    }))
     const gated = all.filter((r) => r.believability >= 0.5)
-    const responses = gated.length >= Math.ceil(size * 0.6) ? gated : all
+    const responses = gated.length >= Math.ceil(all.length * 0.6) ? gated : all
 
     const result: PanelResult = { responses, stats: computeStats(responses) }
     return Response.json(result)
