@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  /* Apple's signature off-white — never pure #FFF */
+  background: #FAFAF7;
+  color: #111111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #E60023;
+  color: #FFFFFF;
+}
+
+textarea::placeholder, input::placeholder {
+  color: #A5A5A5;
+}
+
+/* Editorial serif tweaks for italic display use */
+.font-display {
+  font-feature-settings: "kern", "liga", "dlig";
+  letter-spacing: -0.02em;
+}
+
+/* Thin frosted-glass scrollbar so dense panels stay quiet */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #CDCDCD; border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }
