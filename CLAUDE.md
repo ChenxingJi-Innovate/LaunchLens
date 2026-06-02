@@ -9,9 +9,16 @@ and `./CONCEPT.md` for the full product rationale and the two source projects it
 
 ## Pipeline
 
+0. **Knowledge base** (`/api/kb`, optional) — paste text or a URL. The doc is chunked + embedded
+   (SiliconFlow) into `UserChunk[]` and kept client-side (localStorage `ll-kb`). At run time the
+   chunks ride into `/api/ground` and are retrieved via `lib/rag.ts` (cosine → BGE rerank), then
+   injected as highest-trust `internal` evidence. Degrades gracefully: if embeddings are
+   unavailable (no SiliconFlow balance), ingest stores raw text and retrieval falls back to bigram
+   keyword overlap, so the KB still grounds the analysis.
 1. **Ground** (`/api/ground`) — supply side. Reasons four StratSquad lenses (competitor / trend /
    market / risk) into an `EvidenceBundle`, tiers every cited source by credibility (clamped per
-   tier band). Optionally enriched with live data if `STRATSQUAD_BACKEND_URL` is set.
+   tier band), with any retrieved KB chunks prepended as `internal` sources. Optionally enriched
+   with live data if `STRATSQUAD_BACKEND_URL` is set.
 2. **Panel** (`/api/panel`) — demand side. Generates N synthetic customer personas that each read
    the evidence bundle, then privately rate adoption propensity 1-5 with a justification and one
    objection. Believability-gated (TinyPersonValidator-style). Demand stats computed server-side.
@@ -34,11 +41,14 @@ app/
 ├── page.tsx                single-page client app: input → Ground → Panel → Verdict → export
 ├── globals.css             tailwind + off-white body
 └── api/
-    ├── ground/route.ts     supply-side evidence bundle (+ optional live StratSquad enrich)
+    ├── kb/route.ts         knowledge-base ingest: text/URL → chunk → embed → UserChunk[]
+    ├── ground/route.ts     supply-side evidence bundle (RAG retrieval + optional live StratSquad)
     ├── panel/route.ts      demand-side grounded persona survey + server-side DemandStats
     └── verdict/route.ts    contradiction meta-judge → final call + 90-day plan
 lib/
 ├── types.ts                all shared types (the data contract between stages)
+├── i18n.ts                 zh/en UI dictionary + langInstruction() for LLM output
+├── rag.ts                  embed / chunk / cosine + bigram-fallback retrieve / rerank / fetch URL
 └── llm.ts                  DeepSeek client, runJson<T> helper, reliability clamping
 ```
 

@@ -33,12 +33,22 @@ export interface IdeaInput {
 // ---------- (A) Ground: supply-side evidence ----------
 
 export type SourceTier =
+  | 'internal' // from the user's own attached knowledge base (highest trust)
   | 'official'
   | 'academic'
   | 'industry'
   | 'community'
   | 'ugc'
   | 'unknown'
+
+// One embedded slice of an attached knowledge-base document. Embedded once at
+// ingest (/api/kb), stored client-side, passed back into /api/ground at run time.
+export interface UserChunk {
+  id: string
+  text: string
+  source: string // document title / filename / URL the chunk came from
+  embedding: number[]
+}
 
 export interface EvidenceSource {
   claim: string // the factual claim being credited

@@ -52,6 +52,7 @@ export async function runJson<T>(
 // Mirrors StratSquad's source_judge: community/ugc claims can never read as gospel.
 export function clampReliability(tier: string, raw: number): number {
   const bands: Record<string, [number, number]> = {
+    internal: [0.8, 1.0],
     official: [0.75, 1.0],
     academic: [0.7, 0.95],
     industry: [0.5, 0.85],

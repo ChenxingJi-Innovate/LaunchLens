@@ -24,6 +24,15 @@ export interface Dict {
   icpPlaceholder: string
   panelLabel: (n: number) => string
   modelLabel: string
+  // knowledge base (RAG)
+  kbLabel: string
+  kbPlaceholder: string
+  kbAdd: string
+  kbAdding: string
+  kbEmpty: string
+  kbChunks: (n: number) => string
+  kbClear: string
+  kbBadge: string
   runBtn: string
   runningBtn: string
   errFill: string
@@ -91,6 +100,14 @@ const zh: Dict = {
   icpPlaceholder: '例：价格敏感、重度使用短视频',
   panelLabel: (n) => `合成客群规模：${n} 人`,
   modelLabel: '推理模型 (DeepSeek)',
+  kbLabel: '知识库 (RAG · 可选)',
+  kbPlaceholder: '粘贴文档文本，或输入网址 URL',
+  kbAdd: '添加',
+  kbAdding: '处理中…',
+  kbEmpty: '上传产品文档、竞品资料或调研，作为最高可信(internal)证据接入。',
+  kbChunks: (n) => `${n} 段`,
+  kbClear: '清空',
+  kbBadge: '已挂载知识库',
   runBtn: '开始验证',
   runningBtn: '验证中…',
   errFill: '请填写产品想法和目标市场',
@@ -152,6 +169,14 @@ const en: Dict = {
   icpPlaceholder: 'e.g. price-sensitive, heavy short-video users',
   panelLabel: (n) => `Panel size: ${n} people`,
   modelLabel: 'Reasoning model (DeepSeek)',
+  kbLabel: 'Knowledge base (RAG · optional)',
+  kbPlaceholder: 'Paste document text, or enter a URL',
+  kbAdd: 'Add',
+  kbAdding: 'Processing…',
+  kbEmpty: 'Add product docs, competitor research or surveys as highest-trust (internal) evidence.',
+  kbChunks: (n) => `${n} chunks`,
+  kbClear: 'Clear',
+  kbBadge: 'Knowledge base attached',
   runBtn: 'Validate',
   runningBtn: 'Validating…',
   errFill: 'Please fill in the product idea and target market',

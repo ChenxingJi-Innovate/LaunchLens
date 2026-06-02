@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import {
   Activity, Users, Scale, Download, Loader2, AlertTriangle,
   TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope, Languages,
+  BookOpen, Plus, Trash2, FileText,
 } from 'lucide-react'
 import type {
-  EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord, DeepSeekModel,
+  EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord, DeepSeekModel, UserChunk,
 } from '@/lib/types'
 import { MODELS, DEFAULT_MODEL } from '@/lib/types'
 import { STRINGS, type Dict, type Lang } from '@/lib/i18n'
@@ -59,8 +60,47 @@ export default function Page() {
   const [panelSize, setPanelSize] = useState(12)
   const [model, setModel] = useState<DeepSeekModel>(DEFAULT_MODEL)
 
+  // knowledge base (RAG): chunks live client-side and are passed into /api/ground
+  const [kbChunks, setKbChunks] = useState<UserChunk[]>([])
+  const [kbInput, setKbInput] = useState('')
+  const [kbAdding, setKbAdding] = useState(false)
+
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState('')
+
+  // restore + persist the knowledge base (best-effort; embeddings can exceed quota)
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('ll-kb')
+      if (saved) setKbChunks(JSON.parse(saved))
+    } catch { /* ignore */ }
+  }, [])
+  function persistKb(chunks: UserChunk[]) {
+    try { window.localStorage.setItem('ll-kb', JSON.stringify(chunks)) } catch { /* over quota: keep in memory only */ }
+  }
+  async function addKb() {
+    const v = kbInput.trim()
+    if (!v || kbAdding) return
+    setKbAdding(true); setError('')
+    try {
+      const isUrl = /^https?:\/\//i.test(v)
+      const r = await post<{ chunks: UserChunk[]; source: string; count: number }>('/api/kb',
+        isUrl ? { url: v } : { text: v })
+      const next = [...kbChunks, ...r.chunks]
+      setKbChunks(next); persistKb(next); setKbInput('')
+    } catch (e: any) {
+      setError(e?.message ?? 'KB ingest failed')
+    } finally {
+      setKbAdding(false)
+    }
+  }
+  function clearKb() {
+    setKbChunks([]); persistKb([])
+  }
+  // group chunks by source document for the chip list
+  const kbSources = Array.from(
+    kbChunks.reduce((m, c) => m.set(c.source, (m.get(c.source) ?? 0) + 1), new Map<string, number>())
+  ).map(([source, count]) => ({ source, count }))
   const [bundle, setBundle] = useState<EvidenceBundle | null>(null)
   const [liveUsed, setLiveUsed] = useState(false)
   const [panel, setPanel] = useState<PanelResult | null>(null)
@@ -89,7 +129,8 @@ export default function Page() {
 
     try {
       setStage('grounding')
-      const g = await post<{ bundle: EvidenceBundle; live: boolean }>('/api/ground', input)
+      const g = await post<{ bundle: EvidenceBundle; live: boolean }>('/api/ground',
+        { ...input, userChunks: kbChunks })
       setBundle(g.bundle); setLiveUsed(g.live)
 
       setStage('paneling')
@@ -195,6 +236,45 @@ export default function Page() {
               placeholder={t.icpPlaceholder}
               className="w-full rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
+          </Field>
+          <Field label={t.kbLabel}>
+            <div className="flex gap-200">
+              <input
+                value={kbInput} onChange={(e) => setKbInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addKb() }}
+                placeholder={t.kbPlaceholder} disabled={kbAdding}
+                className="flex-1 min-w-0 rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
+              />
+              <button onClick={addKb} disabled={kbAdding || !kbInput.trim()}
+                className="flex items-center gap-100 rounded-200 bg-cosmicore text-mochimalist px-300 text-200 font-semibold disabled:opacity-40 hover:bg-roboflow-800 transition-colors shrink-0">
+                {kbAdding ? <Loader2 className="w-300 h-300 animate-spin" /> : <Plus className="w-300 h-300" />}
+                {kbAdding ? t.kbAdding : t.kbAdd}
+              </button>
+            </div>
+            {kbSources.length === 0 ? (
+              <p className="text-100 text-roboflow-400 mt-200 flex items-start gap-100">
+                <BookOpen className="w-300 h-300 mt-[1px] shrink-0" />{t.kbEmpty}
+              </p>
+            ) : (
+              <div className="mt-200 space-y-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-100 font-semibold text-pushpin-450 flex items-center gap-100">
+                    <BookOpen className="w-300 h-300" />{t.kbBadge} · {t.kbChunks(kbChunks.length)}
+                  </span>
+                  <button onClick={clearKb} className="text-100 text-roboflow-400 hover:text-pushpin-500 flex items-center gap-100 transition-colors">
+                    <Trash2 className="w-300 h-300" />{t.kbClear}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-100">
+                  {kbSources.map((s, i) => (
+                    <span key={i} className="text-100 px-200 py-[2px] rounded-pill bg-roboflow-100 text-roboflow-600 flex items-center gap-100 max-w-full">
+                      <FileText className="w-300 h-300 shrink-0" /><span className="truncate max-w-[180px]">{s.source}</span>
+                      <span className="text-roboflow-400">·{s.count}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </Field>
           <Field label={t.panelLabel(panelSize)}>
             <input type="range" min={6} max={24} step={1} value={panelSize}
