@@ -149,3 +149,5 @@ ${langInstruction(input.lang === 'en' ? 'en' : 'zh')}`
 }
 
 export const dynamic = "force-dynamic"
+
+export const maxDuration = 300
