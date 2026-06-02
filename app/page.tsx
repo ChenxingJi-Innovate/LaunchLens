@@ -1,50 +1,57 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity, Users, Scale, Download, Loader2, AlertTriangle,
-  TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope,
+  TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope, Languages,
 } from 'lucide-react'
 import type {
   EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord, DeepSeekModel,
 } from '@/lib/types'
 import { MODELS, DEFAULT_MODEL } from '@/lib/types'
+import { STRINGS, type Dict, type Lang } from '@/lib/i18n'
 
 // ---------------------------------------------------------------------------
 // LaunchLens single-page app. Three-stage pipeline driven from one client component:
 //   (A) Ground  → supply-side evidence bundle
 //   (B/C) Panel → demand-side synthetic customer survey, grounded in (A)
 //   (D) Verdict → contradiction meta-judge → one honest call + export
+// All visible copy comes from STRINGS[lang]; `lang` is also sent to the API so the
+// LLM-generated content (market read, persona answers, verdict) matches the UI language.
 // ---------------------------------------------------------------------------
 
 type Stage = 'idle' | 'grounding' | 'paneling' | 'judging' | 'done'
 
-const SCOPES: { value: MarketScope; label: string }[] = [
-  { value: 'china', label: '中国' },
-  { value: 'global', label: '全球' },
-  { value: 'overseas', label: '海外' },
-]
+const SCOPE_VALUES: MarketScope[] = ['china', 'global', 'overseas']
 
-const SUPPLY_META: Record<EvidenceBundle['supplyVerdict'], { label: string; cls: string; Icon: any }> = {
-  tailwind: { label: '市场顺风', cls: 'text-pushpin-450 bg-pushpin-50', Icon: TrendingUp },
-  mixed: { label: '喜忧参半', cls: 'text-roboflow-600 bg-roboflow-100', Icon: Minus },
-  headwind: { label: '市场逆风', cls: 'text-roboflow-700 bg-roboflow-200', Icon: TrendingDown },
+// Style only (colour + icon); the human label is pulled from the dictionary per language.
+const SUPPLY_STYLE: Record<EvidenceBundle['supplyVerdict'], { cls: string; Icon: any }> = {
+  tailwind: { cls: 'text-pushpin-450 bg-pushpin-50', Icon: TrendingUp },
+  mixed: { cls: 'text-roboflow-600 bg-roboflow-100', Icon: Minus },
+  headwind: { cls: 'text-roboflow-700 bg-roboflow-200', Icon: TrendingDown },
 }
 
-const CALL_META: Record<Verdict['call'], { label: string; cls: string; Icon: any }> = {
-  validated: { label: '值得做 · Validated', cls: 'bg-pushpin-450 text-mochimalist', Icon: CheckCircle2 },
-  conditional: { label: '有条件做 · Conditional', cls: 'bg-roboflow-700 text-mochimalist', Icon: CircleDot },
-  kill: { label: '不建议做 · Kill', cls: 'bg-roboflow-800 text-mochimalist', Icon: XCircle },
-}
-
-const LENS_LABEL: Record<string, string> = {
-  competitor: '竞争 Competitor',
-  trend: '趋势 Trend',
-  market: '市场 Market',
-  risk: '风险 Risk',
+const CALL_STYLE: Record<Verdict['call'], { cls: string; Icon: any }> = {
+  validated: { cls: 'bg-pushpin-450 text-mochimalist', Icon: CheckCircle2 },
+  conditional: { cls: 'bg-roboflow-700 text-mochimalist', Icon: CircleDot },
+  kill: { cls: 'bg-roboflow-800 text-mochimalist', Icon: XCircle },
 }
 
 export default function Page() {
+  const [lang, setLang] = useState<Lang>('zh')
+  const t = STRINGS[lang]
+
+  // restore language choice on mount; persist on change (avoids SSR hydration mismatch)
+  useEffect(() => {
+    const saved = window.localStorage.getItem('ll-lang')
+    if (saved === 'zh' || saved === 'en') setLang(saved)
+  }, [])
+  function toggleLang() {
+    const next: Lang = lang === 'zh' ? 'en' : 'zh'
+    setLang(next)
+    window.localStorage.setItem('ll-lang', next)
+  }
+
   const [idea, setIdea] = useState('')
   const [market, setMarket] = useState('')
   const [scope, setScope] = useState<MarketScope>('global')
@@ -73,12 +80,12 @@ export default function Page() {
 
   async function run() {
     if (!idea.trim() || !market.trim()) {
-      setError('请填写产品想法和目标市场')
+      setError(t.errFill)
       return
     }
     setError('')
     setBundle(null); setPanel(null); setVerdict(null)
-    const input: IdeaInput = { idea, market, scope, icpHints, panelSize, model }
+    const input: IdeaInput = { idea, market, scope, icpHints, panelSize, model, lang }
 
     try {
       setStage('grounding')
@@ -96,27 +103,26 @@ export default function Page() {
       setVerdict(v.verdict)
       setStage('done')
     } catch (e: any) {
-      setError(e?.message ?? '运行失败')
+      setError(e?.message ?? t.errRun)
       setStage('idle')
     }
   }
 
   function exportJsonl() {
     if (!bundle || !panel || !verdict) return
-    const sys = '你是一个产品想法验证助手，基于供给侧市场情报与需求侧客群反馈，给出验证结论。'
     const userMsg =
-      `产品想法：${idea}\n目标市场：${market}（${scope}）\n\n` +
-      `市场判断：${bundle.marketRead}（供给侧：${bundle.supplyVerdict}）\n` +
-      `需求侧：均值${panel.stats.mean}/5，正面${panel.stats.positivePct}%，主要反对：` +
-      `${panel.stats.topObjections.map((o) => o.objection).join('；')}`
+      t.exportIdea(idea, market, t.scope[scope]) +
+      t.exportMarket(bundle.marketRead, t.supplyVerdict[bundle.supplyVerdict]) +
+      t.exportDemand(panel.stats.mean, panel.stats.positivePct, panel.stats.topObjections.map((o) => o.objection).join('; '))
     const assistant =
-      `结论：${CALL_META[verdict.call].label}\n理由：${verdict.rationale}\n` +
-      (verdict.contradiction ? `供需冲突：${verdict.contradiction}\n` : '') +
-      `最便宜的验证：${verdict.cheapestExperiment}\n` +
-      `90天计划：${verdict.ninetyDayPlan.map((s) => `${s.week} ${s.action}(KPI:${s.kpi})`).join('；')}`
+      t.exportConclusion(t.call[verdict.call]) +
+      t.exportReason(verdict.rationale) +
+      (verdict.contradiction ? t.exportConflict(verdict.contradiction) : '') +
+      t.exportCheapest(verdict.cheapestExperiment) +
+      t.exportPlan(verdict.ninetyDayPlan.map((s) => `${s.week} ${s.action} (KPI: ${s.kpi})`).join('; '))
     const rec: SftRecord = {
       messages: [
-        { role: 'system', content: sys },
+        { role: 'system', content: t.exportSys },
         { role: 'user', content: userMsg },
         { role: 'assistant', content: assistant },
       ],
@@ -132,64 +138,70 @@ export default function Page() {
     <main className="min-h-screen mx-auto max-w-[1180px] px-500 py-900">
       {/* Header */}
       <header className="mb-900">
-        <div className="flex items-center gap-300 mb-300">
-          <div className="w-1000 h-1000 rounded-300 bg-cosmicore grid place-items-center shadow-raised">
-            <Telescope className="w-600 h-600 text-mochimalist" strokeWidth={1.75} />
+        <div className="flex items-start justify-between gap-300 mb-300">
+          <div className="flex items-center gap-300">
+            <div className="w-1000 h-1000 rounded-300 bg-cosmicore grid place-items-center shadow-raised">
+              <Telescope className="w-600 h-600 text-mochimalist" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h1 className="text-600 font-bold tracking-tight leading-none">LaunchLens</h1>
+              <p className="text-200 text-roboflow-500 mt-100">{t.tagline}</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-600 font-bold tracking-tight leading-none">LaunchLens</h1>
-            <p className="text-200 text-roboflow-500 mt-100">市场视角 + 用户视角，上线前一次看清你的产品想法</p>
-          </div>
+          <button onClick={toggleLang}
+            className="flex items-center gap-200 rounded-pill border border-roboflow-200 bg-mochimalist px-300 py-200 text-200 font-semibold text-roboflow-600 hover:border-pushpin-300 hover:text-cosmicore transition-colors shrink-0">
+            <Languages className="w-300 h-300" /> {t.langToggle}
+          </button>
         </div>
         <p className="text-300 text-roboflow-600 max-w-[640px] leading-relaxed">
-          供给侧的<span className="font-semibold text-cosmicore">市场情报</span>（StratSquad 式）
-          与需求侧的<span className="font-semibold text-cosmicore">合成客群</span>（TinyTroupe 式）合并为一个判断：
-          <span className="font-display italic"> 这个产品到底该不该做。</span>
+          {t.intro1}<span className="font-semibold text-cosmicore">{t.marketIntel}</span>
+          {t.intro2}<span className="font-semibold text-cosmicore">{t.synthPanel}</span>
+          {t.intro3}<span className="font-display italic">{t.introEmph}</span>
         </p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-600 items-start">
         {/* ---------------- Input column ---------------- */}
         <section className="lg:sticky lg:top-500 rounded-400 bg-mochimalist shadow-floating p-600 space-y-500">
-          <Field label="产品想法 (Idea)">
+          <Field label={t.ideaLabel}>
             <textarea
               value={idea} onChange={(e) => setIdea(e.target.value)} rows={3}
-              placeholder="例：面向东南亚学生的轻量 AI 错题本 App"
+              placeholder={t.ideaPlaceholder}
               className="w-full resize-none rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
           </Field>
-          <Field label="目标市场 (Market)">
+          <Field label={t.marketLabel}>
             <input
               value={market} onChange={(e) => setMarket(e.target.value)}
-              placeholder="例：东南亚 K12 学生与家长"
+              placeholder={t.marketPlaceholder}
               className="w-full rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
           </Field>
-          <Field label="市场范围 (Scope)">
+          <Field label={t.scopeLabel}>
             <div className="flex gap-100 p-100 rounded-200 bg-roboflow-100">
-              {SCOPES.map((s) => (
-                <button key={s.value} onClick={() => setScope(s.value)}
+              {SCOPE_VALUES.map((s) => (
+                <button key={s} onClick={() => setScope(s)}
                   className={`flex-1 py-200 rounded-100 text-200 font-semibold transition-all ${
-                    scope === s.value ? 'bg-mochimalist text-cosmicore shadow-floating' : 'text-roboflow-500'
+                    scope === s ? 'bg-mochimalist text-cosmicore shadow-floating' : 'text-roboflow-500'
                   }`}>
-                  {s.label}
+                  {t.scope[s]}
                 </button>
               ))}
             </div>
           </Field>
-          <Field label="目标客户线索 (可选)">
+          <Field label={t.icpLabel}>
             <input
               value={icpHints} onChange={(e) => setIcpHints(e.target.value)}
-              placeholder="例：价格敏感、重度使用短视频"
+              placeholder={t.icpPlaceholder}
               className="w-full rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
           </Field>
-          <Field label={`合成客群规模：${panelSize} 人`}>
+          <Field label={t.panelLabel(panelSize)}>
             <input type="range" min={6} max={24} step={1} value={panelSize}
               onChange={(e) => setPanelSize(+e.target.value)}
               className="w-full accent-pushpin-450" />
           </Field>
-          <Field label="推理模型 (DeepSeek)">
+          <Field label={t.modelLabel}>
             <div className="flex gap-100 p-100 rounded-200 bg-roboflow-100">
               {MODELS.map((m) => (
                 <button key={m.id} onClick={() => setModel(m.id)} disabled={running}
@@ -197,7 +209,7 @@ export default function Page() {
                     model === m.id ? 'bg-mochimalist shadow-floating' : ''
                   }`}>
                   <span className={`block text-200 font-semibold ${model === m.id ? 'text-cosmicore' : 'text-roboflow-500'}`}>{m.label}</span>
-                  <span className={`block text-100 ${model === m.id ? 'text-roboflow-500' : 'text-roboflow-400'}`}>{m.hint}</span>
+                  <span className={`block text-100 ${model === m.id ? 'text-roboflow-500' : 'text-roboflow-400'}`}>{t.modelHint[m.id]}</span>
                 </button>
               ))}
             </div>
@@ -206,7 +218,7 @@ export default function Page() {
           <button onClick={run} disabled={running}
             className="w-full flex items-center justify-center gap-200 rounded-200 bg-pushpin-450 text-mochimalist font-semibold py-300 text-300 shadow-raised hover:bg-pushpin-500 disabled:opacity-50 transition-all">
             {running ? <Loader2 className="w-400 h-400 animate-spin" /> : <Sparkles className="w-400 h-400" />}
-            {running ? '验证中…' : '开始验证'}
+            {running ? t.runningBtn : t.runBtn}
           </button>
 
           {error && (
@@ -215,16 +227,16 @@ export default function Page() {
             </div>
           )}
 
-          <StageRail stage={stage} liveUsed={liveUsed} />
+          <StageRail stage={stage} liveUsed={liveUsed} t={t} />
         </section>
 
         {/* ---------------- Results column ---------------- */}
         <section className="space-y-600 min-w-0">
-          {!bundle && !running && <EmptyState />}
+          {!bundle && !running && <EmptyState t={t} />}
 
-          {bundle && <SupplyCard bundle={bundle} />}
-          {panel && <DemandCard panel={panel} />}
-          {verdict && <VerdictCard verdict={verdict} onExport={exportJsonl} />}
+          {bundle && <SupplyCard bundle={bundle} t={t} />}
+          {panel && <DemandCard panel={panel} t={t} />}
+          {verdict && <VerdictCard verdict={verdict} onExport={exportJsonl} t={t} />}
         </section>
       </div>
     </main>
@@ -242,11 +254,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function StageRail({ stage, liveUsed }: { stage: Stage; liveUsed: boolean }) {
+function StageRail({ stage, liveUsed, t }: { stage: Stage; liveUsed: boolean; t: Dict }) {
   const steps: { key: Stage; label: string; Icon: any }[] = [
-    { key: 'grounding', label: '供给侧 · 市场情报', Icon: Activity },
-    { key: 'paneling', label: '需求侧 · 合成客群', Icon: Users },
-    { key: 'judging', label: '仲裁 · 最终结论', Icon: Scale },
+    { key: 'grounding', label: t.stageGround, Icon: Activity },
+    { key: 'paneling', label: t.stagePanel, Icon: Users },
+    { key: 'judging', label: t.stageJudge, Icon: Scale },
   ]
   const order: Stage[] = ['idle', 'grounding', 'paneling', 'judging', 'done']
   const cur = order.indexOf(stage)
@@ -274,14 +286,12 @@ function StageRail({ stage, liveUsed }: { stage: Stage; liveUsed: boolean }) {
   )
 }
 
-function EmptyState() {
+function EmptyState({ t }: { t: Dict }) {
   return (
     <div className="rounded-400 border border-dashed border-roboflow-300 bg-mochimalist/50 p-900 text-center animate-fadeUp">
       <Target className="w-1000 h-1000 mx-auto text-roboflow-300 mb-400" strokeWidth={1.5} />
-      <p className="text-300 text-roboflow-500">填写左侧产品想法，开始一次端到端验证。</p>
-      <p className="text-200 text-roboflow-400 mt-200">
-        市场情报 → 合成客群打分 → 矛盾仲裁，最后导出可用于微调的 JSONL。
-      </p>
+      <p className="text-300 text-roboflow-500">{t.empty1}</p>
+      <p className="text-200 text-roboflow-400 mt-200">{t.empty2}</p>
     </div>
   )
 }
@@ -301,19 +311,19 @@ function Card({ icon, title, sub, children }: { icon: React.ReactNode; title: st
   )
 }
 
-function SupplyCard({ bundle }: { bundle: EvidenceBundle }) {
-  const m = SUPPLY_META[bundle.supplyVerdict]
+function SupplyCard({ bundle, t }: { bundle: EvidenceBundle; t: Dict }) {
+  const st = SUPPLY_STYLE[bundle.supplyVerdict]
   return (
-    <Card icon={<Activity className="w-500 h-500" strokeWidth={1.75} />} title="供给侧 · 市场情报" sub="市场在朝这个方向走吗？">
-      <div className={`inline-flex items-center gap-200 rounded-pill px-300 py-100 text-200 font-semibold mb-400 ${m.cls}`}>
-        <m.Icon className="w-300 h-300" /> {m.label} · 信心 {(bundle.supplyConfidence * 100).toFixed(0)}%
+    <Card icon={<Activity className="w-500 h-500" strokeWidth={1.75} />} title={t.supplyTitle} sub={t.supplySub}>
+      <div className={`inline-flex items-center gap-200 rounded-pill px-300 py-100 text-200 font-semibold mb-400 ${st.cls}`}>
+        <st.Icon className="w-300 h-300" /> {t.supplyVerdict[bundle.supplyVerdict]} · {t.confidence} {(bundle.supplyConfidence * 100).toFixed(0)}%
       </div>
       <p className="text-300 text-cosmicore leading-relaxed mb-500">{bundle.marketRead}</p>
 
       <div className="grid sm:grid-cols-2 gap-300 mb-500">
         {bundle.experts.map((e) => (
           <div key={e.lens} className="rounded-300 bg-roboflow-50 p-400">
-            <div className="text-100 font-semibold text-pushpin-450 mb-200">{LENS_LABEL[e.lens] ?? e.lens}</div>
+            <div className="text-100 font-semibold text-pushpin-450 mb-200">{t.lens[e.lens] ?? e.lens}</div>
             <div className="text-200 font-medium text-cosmicore mb-200">{e.headline}</div>
             <ul className="space-y-100">
               {e.bullets.map((b, i) => (
@@ -326,7 +336,7 @@ function SupplyCard({ bundle }: { bundle: EvidenceBundle }) {
         ))}
       </div>
 
-      <div className="text-100 font-semibold text-roboflow-600 mb-200">来源可靠度</div>
+      <div className="text-100 font-semibold text-roboflow-600 mb-200">{t.sourceReliability}</div>
       <div className="space-y-200">
         {bundle.sources.map((s, i) => (
           <div key={i} className="flex items-center gap-300">
@@ -345,15 +355,15 @@ function SupplyCard({ bundle }: { bundle: EvidenceBundle }) {
   )
 }
 
-function DemandCard({ panel }: { panel: PanelResult }) {
+function DemandCard({ panel, t }: { panel: PanelResult; t: Dict }) {
   const { stats, responses } = panel
   const max = Math.max(1, ...Object.values(stats.histogram))
   return (
-    <Card icon={<Users className="w-500 h-500" strokeWidth={1.75} />} title="需求侧 · 合成客群" sub={`${stats.n} 位潜在客户独立打分（已读市场证据）`}>
+    <Card icon={<Users className="w-500 h-500" strokeWidth={1.75} />} title={t.demandTitle} sub={t.demandSub(stats.n)}>
       <div className="grid grid-cols-3 gap-300 mb-500">
-        <Stat label="采用倾向均值" value={`${stats.mean}`} unit="/5" tone="pushpin" />
-        <Stat label="正面 (4-5星)" value={`${stats.positivePct}`} unit="%" tone="cosmicore" />
-        <Stat label="负面 (1-2星)" value={`${stats.negativePct}`} unit="%" tone="roboflow" />
+        <Stat label={t.statMean} value={`${stats.mean}`} unit="/5" tone="pushpin" />
+        <Stat label={t.statPos} value={`${stats.positivePct}`} unit="%" tone="cosmicore" />
+        <Stat label={t.statNeg} value={`${stats.negativePct}`} unit="%" tone="roboflow" />
       </div>
 
       {/* histogram */}
@@ -371,7 +381,7 @@ function DemandCard({ panel }: { panel: PanelResult }) {
       {/* segments */}
       {stats.bySegment.length > 0 && (
         <div className="mb-500">
-          <div className="text-100 font-semibold text-roboflow-600 mb-200">分细分市场</div>
+          <div className="text-100 font-semibold text-roboflow-600 mb-200">{t.segTitle}</div>
           <div className="space-y-100">
             {stats.bySegment.map((s, i) => (
               <div key={i} className="flex items-center gap-300 text-100">
@@ -389,7 +399,7 @@ function DemandCard({ panel }: { panel: PanelResult }) {
       {/* top objections */}
       {stats.topObjections.length > 0 && (
         <div className="mb-500">
-          <div className="text-100 font-semibold text-roboflow-600 mb-200">主要反对意见</div>
+          <div className="text-100 font-semibold text-roboflow-600 mb-200">{t.objTitle}</div>
           <div className="flex flex-wrap gap-200">
             {stats.topObjections.map((o, i) => (
               <span key={i} className="text-100 px-300 py-100 rounded-pill bg-pushpin-50 text-pushpin-500">
@@ -403,7 +413,7 @@ function DemandCard({ panel }: { panel: PanelResult }) {
       {/* persona grid */}
       <details className="group">
         <summary className="cursor-pointer text-100 font-semibold text-roboflow-600 select-none">
-          展开 {responses.length} 位 persona 的逐条回答
+          {t.personaToggle(responses.length)}
         </summary>
         <div className="grid sm:grid-cols-2 gap-300 mt-300">
           {responses.map((p, i) => <PersonaCard key={i} p={p} />)}
@@ -441,12 +451,12 @@ function Stat({ label, value, unit, tone }: { label: string; value: string; unit
   )
 }
 
-function VerdictCard({ verdict, onExport }: { verdict: Verdict; onExport: () => void }) {
-  const m = CALL_META[verdict.call]
+function VerdictCard({ verdict, onExport, t }: { verdict: Verdict; onExport: () => void; t: Dict }) {
+  const st = CALL_STYLE[verdict.call]
   return (
-    <Card icon={<Scale className="w-500 h-500" strokeWidth={1.75} />} title="矛盾仲裁 · 最终结论" sub="供给与需求是否一致？">
-      <div className={`inline-flex items-center gap-200 rounded-200 px-400 py-200 text-300 font-bold mb-400 shadow-raised ${m.cls}`}>
-        <m.Icon className="w-400 h-400" /> {m.label}
+    <Card icon={<Scale className="w-500 h-500" strokeWidth={1.75} />} title={t.verdictTitle} sub={t.verdictSub}>
+      <div className={`inline-flex items-center gap-200 rounded-200 px-400 py-200 text-300 font-bold mb-400 shadow-raised ${st.cls}`}>
+        <st.Icon className="w-400 h-400" /> {t.call[verdict.call]}
       </div>
 
       <p className="text-300 text-cosmicore leading-relaxed mb-400">{verdict.rationale}</p>
@@ -455,7 +465,7 @@ function VerdictCard({ verdict, onExport }: { verdict: Verdict; onExport: () => 
         <div className="flex items-start gap-300 rounded-300 bg-pushpin-50 p-400 mb-400">
           <AlertTriangle className="w-400 h-400 text-pushpin-450 shrink-0 mt-[2px]" />
           <div>
-            <div className="text-100 font-bold text-pushpin-500 mb-100">供需冲突</div>
+            <div className="text-100 font-bold text-pushpin-500 mb-100">{t.contradictionLabel}</div>
             <p className="text-200 text-roboflow-700">{verdict.contradiction}</p>
           </div>
         </div>
@@ -464,14 +474,14 @@ function VerdictCard({ verdict, onExport }: { verdict: Verdict; onExport: () => 
       <div className="flex items-start gap-300 rounded-300 bg-roboflow-50 p-400 mb-500">
         <FlaskConical className="w-400 h-400 text-cosmicore shrink-0 mt-[2px]" />
         <div>
-          <div className="text-100 font-bold text-roboflow-600 mb-100">最便宜的真实验证</div>
+          <div className="text-100 font-bold text-roboflow-600 mb-100">{t.cheapestLabel}</div>
           <p className="text-200 text-cosmicore">{verdict.cheapestExperiment}</p>
         </div>
       </div>
 
       {verdict.ninetyDayPlan.length > 0 && (
         <div className="mb-500">
-          <div className="text-100 font-semibold text-roboflow-600 mb-300">90 天落地计划</div>
+          <div className="text-100 font-semibold text-roboflow-600 mb-300">{t.planLabel}</div>
           <div className="space-y-200">
             {verdict.ninetyDayPlan.map((s, i) => (
               <div key={i} className="flex gap-300 items-start rounded-300 bg-roboflow-50 p-300">
@@ -486,7 +496,7 @@ function VerdictCard({ verdict, onExport }: { verdict: Verdict; onExport: () => 
 
       <button onClick={onExport}
         className="w-full flex items-center justify-center gap-200 rounded-200 bg-cosmicore text-mochimalist font-semibold py-300 text-200 hover:bg-roboflow-800 transition-colors">
-        <Download className="w-400 h-400" /> 导出验证结论 JSONL（SFT）
+        <Download className="w-400 h-400" /> {t.exportBtn}
       </button>
     </Card>
   )

@@ -1,4 +1,5 @@
 import { runJson, resolveModel } from '@/lib/llm'
+import { langInstruction } from '@/lib/i18n'
 import type {
   DemandStats,
   EvidenceBundle,
@@ -28,8 +29,7 @@ const SYSTEM = `你是 LaunchLens 的需求侧合成客群引擎，等价于 Tin
 - 覆盖目标市场的主要细分，并刻意纳入极端样本（价格极敏感者、重度老玩家、完全不感兴趣者），以暴露边缘反对意见。
 - 每个 persona 必须先读"市场证据"，其打分理由应尽量引用其中的真实情况，而不是凭空想象。
 - 打分要分散、真实，允许出现低分。不要让所有人都给高分。
-- believability 表示这个 persona 是否自洽可信（0-1），明显套路化/不可信的给低分。
-全部用中文。`
+- believability 表示这个 persona 是否自洽可信（0-1），明显套路化/不可信的给低分。`
 
 function evidenceToMarkdown(b: EvidenceBundle): string {
   const experts = b.experts
@@ -123,7 +123,8 @@ ${evidenceToMarkdown(bundle)}
     }
   ]
 }
-要求：恰好 ${size} 条；score 为 1-5 的整数；分数要真实分散；believability 在 0-1。`
+要求：恰好 ${size} 条；score 为 1-5 的整数；分数要真实分散；believability 在 0-1。
+${langInstruction(input.lang === 'en' ? 'en' : 'zh')}`
 
     const raw = await runJson<{ responses: PersonaResponse[] }>(SYSTEM, user, 6000, 0.8, resolveModel(input.model))
 

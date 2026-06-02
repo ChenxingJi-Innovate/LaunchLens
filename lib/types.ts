@@ -27,6 +27,7 @@ export interface IdeaInput {
   icpHints?: string // optional ideal-customer hints to steer audience sampling
   panelSize: number // how many synthetic customers to simulate (default 12)
   model?: DeepSeekModel // which DeepSeek tier to run the whole pipeline on
+  lang?: 'zh' | 'en' // output language for all generated content
 }
 
 // ---------- (A) Ground: supply-side evidence ----------

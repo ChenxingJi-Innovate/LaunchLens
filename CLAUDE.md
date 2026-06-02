@@ -54,7 +54,12 @@ lib/
   route handlers (and a paid plan) or the function will time out; Flash is fine on default limits.
 - Routes return JSON; errors as plain-text non-200. JSON mode via `response_format`.
 - DemandStats are computed in the route (one source of truth), not re-derived in the UI.
-- UI strings 中文; Gestalt + HIG tokens from `tailwind.config.ts` (mirrors StyleForge). No dashes.
+- Bilingual zh/en. All UI copy lives in `STRINGS` in `lib/i18n.ts` (中文 default); the header
+  toggle persists the choice to `localStorage('ll-lang')`. The chosen `lang` is sent in
+  `IdeaInput.lang`, and each route appends `langInstruction(lang)` so LLM-generated text matches.
+  Enum fields (`supplyVerdict`, `lens`, `call`) stay English keys regardless of language and are
+  rendered via the dictionary, so the UI mapping never breaks. Gestalt + HIG tokens from
+  `tailwind.config.ts` (mirrors StyleForge). No dashes.
 - Dev server runs on port 3002 (StyleForge 3000, SQLForge 3001).
 
 ## Run

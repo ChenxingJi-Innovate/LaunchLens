@@ -1,4 +1,5 @@
 import { runJson, resolveModel } from '@/lib/llm'
+import { langInstruction } from '@/lib/i18n'
 import type { DemandStats, EvidenceBundle, IdeaInput, Verdict } from '@/lib/types'
 
 // ============================================================================
@@ -22,7 +23,7 @@ const SYSTEM = `你是 LaunchLens 的"矛盾仲裁官"（contradiction meta-judg
 - 市场逆风但客户买账 → 可能是早期机会，但要点明风险。
 最终 call 取值：validated（值得做）/ conditional（有条件做，需先验证关键假设）/ kill（不建议做）。
 还要给出"最便宜的一个真实验证实验"，以及一个 90 天落地计划。
-不要编造精确数字。全部用中文。`
+不要编造精确数字。`
 
 export async function POST(req: Request) {
   try {
@@ -63,7 +64,9 @@ ${demandSummary}
     {"week":"第3-6周","action":"...","kpi":"..."},
     {"week":"第7-12周","action":"...","kpi":"..."}
   ]
-}`
+}
+call 字段保持英文枚举值；其余文本字段用目标语言。
+${langInstruction(input.lang === 'en' ? 'en' : 'zh')}`
 
     const raw = await runJson<Verdict>(SYSTEM, user, 2500, 0.45, resolveModel(input.model))
     const verdict: Verdict = {
