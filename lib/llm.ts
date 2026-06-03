@@ -26,8 +26,29 @@ export function resolveModel(m?: string): DeepSeekModel {
   return MODELS.some((x) => x.id === m) ? (m as DeepSeekModel) : DEFAULT_MODEL
 }
 
+// Pull a parseable JSON payload out of a raw model response. Models occasionally wrap their
+// output in markdown fences, prepend a sentence, or leave a trailing comma; this strips the
+// fences, slices to the outermost {...} / [...], and drops trailing commas before } or ].
+// It does NOT fix genuinely malformed strings (unescaped quotes/newlines) — that is what the
+// retry in runJson is for.
+export function extractJson(raw: string): string {
+  let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  const firstObj = s.indexOf('{')
+  const firstArr = s.indexOf('[')
+  const candidates = [firstObj, firstArr].filter((i) => i >= 0)
+  if (candidates.length) {
+    const start = Math.min(...candidates)
+    if (start > 0) s = s.slice(start)
+  }
+  const end = Math.max(s.lastIndexOf('}'), s.lastIndexOf(']'))
+  if (end >= 0) s = s.slice(0, end + 1)
+  return s.replace(/,(\s*[}\]])/g, '$1') // drop trailing commas
+}
+
 // Blocking JSON-mode call. Returns the parsed object of type T.
-// We defensively strip markdown fences in case the model wraps its JSON.
+// DeepSeek occasionally emits invalid JSON even in json_object mode (an unescaped quote or
+// newline inside a string value). We extract defensively and, if parsing still fails, retry
+// once at a lower temperature with a reinforced "strict JSON only" instruction before giving up.
 export async function runJson<T>(
   system: string,
   user: string,
@@ -35,19 +56,33 @@ export async function runJson<T>(
   temperature = 0.5,
   model: DeepSeekModel = MODEL,
 ): Promise<T> {
-  const r = await getClient().chat.completions.create({
-    model,
-    max_tokens: maxTokens,
-    temperature,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-  })
-  const raw = (r.choices[0].message.content ?? '').trim()
-  const cleaned = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
-  return JSON.parse(cleaned) as T
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await getClient().chat.completions.create({
+      model,
+      max_tokens: maxTokens,
+      temperature: attempt === 0 ? temperature : Math.min(temperature, 0.3),
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content:
+            attempt === 0
+              ? system
+              : system +
+                '\n\n只输出一个合法的 JSON，不要任何多余文字或解释；字符串值内部的引号和换行必须正确转义。',
+        },
+        { role: 'user', content: user },
+      ],
+    })
+    const raw = (r.choices[0].message.content ?? '').trim()
+    try {
+      return JSON.parse(extractJson(raw)) as T
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw lastErr
 }
 
 // Clamp a numeric reliability score into the band allowed for its source tier.
