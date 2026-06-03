@@ -79,6 +79,7 @@ export default function Page() {
   const [kbChunks, setKbChunks] = useState<UserChunk[]>([])
   const [kbInput, setKbInput] = useState('')
   const [kbAdding, setKbAdding] = useState(false)
+  const [kbError, setKbError] = useState('') // shown right under the KB field, not far down by Run
 
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState('')
@@ -103,9 +104,10 @@ export default function Page() {
     try { window.localStorage.setItem('ll-kb', JSON.stringify(chunks)) } catch { /* over quota: keep in memory only */ }
   }
   async function addKb() {
+    if (kbAdding) return
     const v = kbInput.trim()
-    if (!v || kbAdding) return
-    setKbAdding(true); setError('')
+    if (!v) { setKbError(t.kbErrEmpty); return } // give feedback instead of a dead disabled button
+    setKbAdding(true); setKbError('')
     try {
       const isUrl = /^https?:\/\//i.test(v)
       const r = await post<{ chunks: UserChunk[]; source: string; count: number }>('/api/kb',
@@ -113,13 +115,13 @@ export default function Page() {
       const next = [...kbChunks, ...r.chunks]
       setKbChunks(next); persistKb(next); setKbInput('')
     } catch (e: any) {
-      setError(e?.message ?? 'KB ingest failed')
+      setKbError(e?.message ?? t.kbErrFail)
     } finally {
       setKbAdding(false)
     }
   }
   function clearKb() {
-    setKbChunks([]); persistKb([])
+    setKbChunks([]); persistKb([]); setKbError('')
   }
 
   // ----- solution editor helpers -----
@@ -397,12 +399,17 @@ export default function Page() {
                 placeholder={t.kbPlaceholder} disabled={kbAdding}
                 className="flex-1 min-w-0 rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
               />
-              <button onClick={addKb} disabled={kbAdding || !kbInput.trim()}
+              <button onClick={addKb} disabled={kbAdding}
                 className="flex items-center gap-100 rounded-200 bg-cosmicore text-mochimalist px-300 text-200 font-semibold disabled:opacity-40 hover:bg-roboflow-800 transition-colors shrink-0">
                 {kbAdding ? <Loader2 className="w-300 h-300 animate-spin" /> : <Plus className="w-300 h-300" />}
                 {kbAdding ? t.kbAdding : t.kbAdd}
               </button>
             </div>
+            {kbError && (
+              <div className="flex items-start gap-100 text-100 text-pushpin-500 bg-pushpin-50 rounded-200 p-200 mt-200">
+                <AlertTriangle className="w-300 h-300 mt-[2px] shrink-0" />{kbError}
+              </div>
+            )}
             {kbSources.length === 0 ? (
               <p className="text-100 text-roboflow-400 mt-200 flex items-start gap-100">
                 <BookOpen className="w-300 h-300 mt-[1px] shrink-0" />{t.kbEmpty}

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { embed, chunkText, fetchUrlText, ragEnabled } from '@/lib/rag'
+import { embed, chunkText, fetchUrlText } from '@/lib/rag'
 import type { UserChunk } from '@/lib/types'
 
 // ============================================================================
@@ -13,8 +13,9 @@ import type { UserChunk } from '@/lib/types'
 
 export async function POST(req: Request) {
   try {
-    if (!ragEnabled()) return new Response('SILICONFLOW_API_KEY not configured', { status: 503 })
-
+    // No hard gate on the embedding provider: if SILICONFLOW_API_KEY is unset or out of balance,
+    // embed() throws below and we still store the raw chunks, so the KB grounds the analysis via
+    // the bigram keyword fallback at retrieval time. This keeps the KB usable on a fresh deploy.
     const { text, url, source } = (await req.json()) as { text?: string; url?: string; source?: string }
 
     let raw = (text || '').trim()

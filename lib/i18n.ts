@@ -58,6 +58,8 @@ export interface Dict {
   kbChunks: (n: number) => string
   kbClear: string
   kbBadge: string
+  kbErrEmpty: string
+  kbErrFail: string
   runBtn: string
   runningBtn: string
   errFill: string
@@ -164,6 +166,8 @@ const zh: Dict = {
   kbChunks: (n) => `${n} 段`,
   kbClear: '清空',
   kbBadge: '已挂载知识库',
+  kbErrEmpty: '请先粘贴文本或输入网址',
+  kbErrFail: '知识库添加失败',
   runBtn: '开始投票',
   runningBtn: '运行中…',
   errFill: '请填写你的处境和面临的问题',
@@ -265,6 +269,8 @@ const en: Dict = {
   kbChunks: (n) => `${n} chunks`,
   kbClear: 'Clear',
   kbBadge: 'Knowledge base attached',
+  kbErrEmpty: 'Paste some text or enter a URL first',
+  kbErrFail: 'Failed to add to the knowledge base',
   runBtn: 'Run the vote',
   runningBtn: 'Running…',
   errFill: 'Please fill in your situation and the problem',

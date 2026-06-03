@@ -228,13 +228,12 @@ ${langInstruction(lang)}`
       }
     })
 
-    const all = answered.filter((r): r is AgentVote => r !== null)
-    if (all.length === 0) return new Response('all agents failed to vote', { status: 502 })
-
-    // believability gate (TinyPersonValidator-style): drop incoherent agents < 0.5,
-    // but never collapse the panel below a usable floor.
-    const gated = all.filter((r) => r.believability >= 0.5)
-    const agents = gated.length >= Math.ceil(all.length * 0.6) ? gated : all
+    // Keep every agent that voted so the panel size matches what the user asked for.
+    // believability is still recorded per agent (a self-rated coherence score) but no longer
+    // drops anyone: silently shrinking 12 -> 11 was confusing. Only a hard vote failure (null)
+    // can reduce the count now.
+    const agents = answered.filter((r): r is AgentVote => r !== null)
+    if (agents.length === 0) return new Response('all agents failed to vote', { status: 502 })
 
     const tally = computeTally(solutions, agents)
     const result: PanelResult = { agents, tally, winnerId: tally[0]?.solutionId ?? solutions[0].id, n: agents.length }
