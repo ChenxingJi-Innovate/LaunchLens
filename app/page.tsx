@@ -142,7 +142,7 @@ export default function Page() {
     setSolutions(t.sample.solutions.map((s) => ({ title: s.title, detail: s.detail })))
     setAudience(t.sample.audience)
     setScope(t.sample.scope)
-    setIcpHints(t.sample.icpHints)
+    // intentionally do NOT prefill 目标客户线索 (icpHints): leave it for the user to add if they want
     setError(''); setGenError('')
   }
 
