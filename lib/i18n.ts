@@ -1,4 +1,4 @@
-// LaunchLens bilingual strings (中文 default, English toggle) per workspace house style.
+// Customer Jury bilingual strings (中文 default, English toggle) per workspace house style.
 // UI strings live here; the `lang` is also sent to the API so the LLM output language matches.
 import type { DeepSeekModel, MarketScope, EvidenceBundle, Verdict, SolutionDraft } from './types'
 

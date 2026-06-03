@@ -2,8 +2,8 @@ import "./globals.css"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "LaunchLens · 上线前，看清你的产品想法",
-  description: "Product idea validation for PMs: grounded market intelligence (supply) fused with a synthetic customer panel (demand).",
+  title: "Customer Jury · 让 AI 客户为你的商业决策投票",
+  description: "Customer Jury: describe your situation and the decision you face, give a few options (or let AI draft them), and a panel of imagined customers votes for the smartest business move.",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

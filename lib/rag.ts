@@ -1,4 +1,4 @@
-// Knowledge base RAG for LaunchLens, mirroring StratSquad's hybrid approach:
+// Knowledge base RAG for Customer Jury, mirroring StratSquad's hybrid approach:
 // dense embeddings (SiliconFlow, OpenAI-compatible) + optional BGE reranker.
 // Chunks are embedded once at ingest, stored client-side, and passed back into
 // /api/ground at run time, where the query is embedded and the top chunks are
@@ -86,7 +86,7 @@ export function chunkText(text: string, maxChars = 700): string[] {
 // Fetch a URL and strip it down to readable text (best-effort, no headless browser).
 export async function fetchUrlText(url: string): Promise<string> {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (LaunchLens KB ingest)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (Customer Jury KB ingest)' },
     signal: AbortSignal.timeout(20000),
   })
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`)

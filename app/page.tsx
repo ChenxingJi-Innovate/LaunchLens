@@ -15,7 +15,7 @@ import { MODELS, DEFAULT_MODEL } from '@/lib/types'
 import { STRINGS, type Dict, type Lang } from '@/lib/i18n'
 
 // ---------------------------------------------------------------------------
-// LaunchLens single-page app. A business decision turned into a customer vote:
+// Customer Jury single-page app. A business decision turned into a customer vote:
 //   (A) Research → grounded market read of the situation + solution space
 //   (B/C) Panel  → imagined customers each score every solution and pick one
 //   (D) Decision → the judge tallies the vote into the smartest move + export
@@ -252,7 +252,7 @@ export default function Page() {
     const blob = new Blob([JSON.stringify(rec)], { type: 'application/jsonl' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'launchlens-decision.jsonl'
+    a.download = 'customer-jury-decision.jsonl'
     a.click()
   }
 
@@ -266,7 +266,7 @@ export default function Page() {
               <Telescope className="w-600 h-600 text-mochimalist" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-600 font-bold tracking-tight leading-none">LaunchLens</h1>
+              <h1 className="text-600 font-bold tracking-tight leading-none">Customer Jury</h1>
               <p className="text-200 text-roboflow-500 mt-100">{t.tagline}</p>
             </div>
           </div>

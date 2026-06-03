@@ -6,7 +6,7 @@ import type { DecisionInput, EvidenceBundle, UserChunk } from '@/lib/types'
 // ============================================================================
 // (A) RESEARCH — the grounded market read the customer panel votes against.
 //
-// This is LaunchLens's StratSquad half, condensed. Where the full StratSquad runs a
+// This is Customer Jury's StratSquad half, condensed. Where the full StratSquad runs a
 // LangGraph fan-out of four ReAct experts over live trend feeds + a BGE-M3 RAG
 // corpus, here we reason the same four lenses (competitor / trend / market / risk)
 // in one structured pass over the user's SITUATION, the PROBLEM they face, and the
@@ -18,7 +18,7 @@ import type { DecisionInput, EvidenceBundle, UserChunk } from '@/lib/types'
 // prompt with live tool results first (best-effort, never fatal).
 // ============================================================================
 
-const SYSTEM = `你是 LaunchLens 的市场调研引擎。你扮演四位资深商业/消费分析师：
+const SYSTEM = `你是 Customer Jury 的市场调研引擎。你扮演四位资深商业/消费分析师：
 - competitor（竞争对手会如何反应、各方案的差异化）
 - trend（品类与用户行为趋势）
 - market（市场规模、分区、变现与价格弹性）

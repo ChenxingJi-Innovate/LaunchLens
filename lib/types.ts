@@ -1,4 +1,4 @@
-// LaunchLens shared types.
+// Customer Jury shared types.
 // The product turns a business decision into a vote: the user describes a SITUATION and the
 // PROBLEM they face, supplies (or asks the AI to generate) a few candidate SOLUTIONS, the engine
 // runs a grounded MARKET RESEARCH pass, then spins up a panel of imagined CUSTOMER AGENTS who each

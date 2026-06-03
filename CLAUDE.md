@@ -1,4 +1,4 @@
-# LaunchLens
+# Customer Jury
 
 > Business decision-making tool. The user describes a SITUATION and the PROBLEM they face, supplies
 > (or asks the AI to draft) a few candidate SOLUTIONS; the engine runs a grounded MARKET RESEARCH
@@ -43,7 +43,7 @@ instead of returning validated/conditional/kill.
 ## The one idea that matters
 
 Every customer agent reads the `EvidenceBundle` before voting (see `evidenceToMarkdown` in
-`app/api/panel/route.ts`). That grounding is what separates LaunchLens from "a focus group in a vacuum".
+`app/api/panel/route.ts`). That grounding is what separates Customer Jury from "a focus group in a vacuum".
 It is the seam where the StratSquad (research) and TinyTroupe (panel) halves join.
 
 ## File layout

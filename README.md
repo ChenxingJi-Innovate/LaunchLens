@@ -1,11 +1,11 @@
-# LaunchLens
+# Customer Jury
 
 > 让 AI 扮演你的客户，投票选出最该做的那个商业决策。
 > A business decision tool: describe your situation and problem, give a few candidate solutions
 > (or let AI draft them), and a panel of imagined customers votes for the smartest move.
 
 You enter your **situation** and the **problem** you face, then supply a couple of candidate
-**solutions** (or click *AI draft options*). LaunchLens then:
+**solutions** (or click *AI draft options*). Customer Jury then:
 
 1. runs a grounded **market research** pass — four analyst lenses (competitor / trend / market /
    risk) with source-credibility tiering (the StratSquad half);

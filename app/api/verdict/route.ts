@@ -14,7 +14,7 @@ import type { DecisionInput, EvidenceBundle, SolutionTally, Verdict } from '@/li
 // cheapest real test before committing, and a 90-day plan.
 // ============================================================================
 
-const SYSTEM = `你是 LaunchLens 的"决策官"（decision judge）。
+const SYSTEM = `你是 Customer Jury 的"决策官"（decision judge）。
 你拿到三样东西：市场调研（气候 + 风险）、几个候选方案、以及一群想象中的客户对这些方案的投票结果。
 你的职责：把客户投票转化为一个【对生意最有利】的最终决策。
 原则：

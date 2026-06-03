@@ -1,6 +1,6 @@
-# LaunchLens — Customer-Vote Business Decision Tool
+# Customer Jury — Customer-Vote Business Decision Tool
 
-> **Product pivot (2026-06-03):** LaunchLens is now a *business decision* tool, not a single-idea
+> **Product pivot (2026-06-03):** Customer Jury is now a *business decision* tool, not a single-idea
 > validator. The user describes a situation + a problem and gives several candidate solutions (or
 > has the AI draft them); the imagined customer panel now COMPARES the solutions (scores each +
 > first-choice vote) and a decision judge picks the winning move. The architecture below is the
@@ -30,7 +30,7 @@ A product manager validating an idea needs two answers that today live in two di
 
 Neither alone validates a product idea. StratSquad can say "the category is up 40% YoY" while the
 actual buyers reject your specific take. TinyTroupe can report "62% would buy" while imagining a
-market that no longer exists. **LaunchLens chains them: real evidence grounds the synthetic panel,
+market that no longer exists. **Customer Jury chains them: real evidence grounds the synthetic panel,
 and one trust layer scores both halves.**
 
 ---
@@ -114,7 +114,7 @@ market report." It is one connector wiring, and it is the whole product.
         is_there_a_good_market() → go / pivot / kill, by segment
         SimulationExperimentEmpiricalValidator → if PM uploads any real survey,
             t-test/KS the synthetic vs real → calibration confidence badge
-        LaunchLens meta-judge: cross-checks demand verdict against supply verdict,
+        Customer Jury meta-judge: cross-checks demand verdict against supply verdict,
             flags contradictions ("market up, but personas reject on price")
         │
         ▼
@@ -129,7 +129,7 @@ market report." It is one connector wiring, and it is the whole product.
 
 ## 5. The unified trust layer (why a PM should believe it)
 
-LaunchLens's credibility is the product. Three stacked checks, each inherited:
+Customer Jury's credibility is the product. Three stacked checks, each inherited:
 
 | Check | Source | Guards against |
 |---|---|---|
