@@ -3,40 +3,44 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, Users, Scale, Download, Loader2, AlertTriangle,
-  TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical, CheckCircle2, XCircle, CircleDot, Telescope, Languages,
+  TrendingUp, TrendingDown, Minus, Sparkles, Target, FlaskConical,
+  CheckCircle2, CircleDot, Telescope, Languages,
   BookOpen, Plus, Trash2, FileText, Lightbulb,
 } from 'lucide-react'
 import type {
-  EvidenceBundle, IdeaInput, MarketScope, PanelResult, PersonaResponse, Verdict, SftRecord, DeepSeekModel, UserChunk,
+  EvidenceBundle, DecisionInput, MarketScope, PanelResult, AgentVote, Verdict,
+  SftRecord, DeepSeekModel, UserChunk, Solution, SolutionDraft, SolutionTally,
 } from '@/lib/types'
 import { MODELS, DEFAULT_MODEL } from '@/lib/types'
 import { STRINGS, type Dict, type Lang } from '@/lib/i18n'
 
 // ---------------------------------------------------------------------------
-// LaunchLens single-page app. Three-stage pipeline driven from one client component:
-//   (A) Ground  → supply-side evidence bundle
-//   (B/C) Panel → demand-side synthetic customer survey, grounded in (A)
-//   (D) Verdict → contradiction meta-judge → one honest call + export
+// LaunchLens single-page app. A business decision turned into a customer vote:
+//   (A) Research → grounded market read of the situation + solution space
+//   (B/C) Panel  → imagined customers each score every solution and pick one
+//   (D) Decision → the judge tallies the vote into the smartest move + export
 // All visible copy comes from STRINGS[lang]; `lang` is also sent to the API so the
-// LLM-generated content (market read, persona answers, verdict) matches the UI language.
+// LLM-generated content (research, customer reasoning, decision) matches the UI language.
 // ---------------------------------------------------------------------------
 
-type Stage = 'idle' | 'grounding' | 'paneling' | 'judging' | 'done'
+type Stage = 'idle' | 'researching' | 'voting' | 'deciding' | 'done'
 
 const SCOPE_VALUES: MarketScope[] = ['china', 'global', 'overseas']
 
 // Style only (colour + icon); the human label is pulled from the dictionary per language.
-const SUPPLY_STYLE: Record<EvidenceBundle['supplyVerdict'], { cls: string; Icon: any }> = {
+const CLIMATE_STYLE: Record<EvidenceBundle['climate'], { cls: string; Icon: any }> = {
   tailwind: { cls: 'text-pushpin-450 bg-pushpin-50', Icon: TrendingUp },
   mixed: { cls: 'text-roboflow-600 bg-roboflow-100', Icon: Minus },
   headwind: { cls: 'text-roboflow-700 bg-roboflow-200', Icon: TrendingDown },
 }
 
-const CALL_STYLE: Record<Verdict['call'], { cls: string; Icon: any }> = {
-  validated: { cls: 'bg-pushpin-450 text-mochimalist', Icon: CheckCircle2 },
-  conditional: { cls: 'bg-roboflow-700 text-mochimalist', Icon: CircleDot },
-  kill: { cls: 'bg-roboflow-800 text-mochimalist', Icon: XCircle },
+const DECISIVE_STYLE: Record<Verdict['decisiveness'], { cls: string; Icon: any }> = {
+  clear: { cls: 'bg-pushpin-450 text-mochimalist', Icon: CheckCircle2 },
+  narrow: { cls: 'bg-roboflow-700 text-mochimalist', Icon: CircleDot },
+  split: { cls: 'bg-roboflow-800 text-mochimalist', Icon: AlertTriangle },
 }
+
+type SolutionDraftRow = { title: string; detail: string }
 
 export default function Page() {
   const [lang, setLang] = useState<Lang>('zh')
@@ -53,12 +57,18 @@ export default function Page() {
     window.localStorage.setItem('ll-lang', next)
   }
 
-  const [idea, setIdea] = useState('')
-  const [market, setMarket] = useState('')
-  const [scope, setScope] = useState<MarketScope>('global')
+  const [situation, setSituation] = useState('')
+  const [problem, setProblem] = useState('')
+  const [solutions, setSolutions] = useState<SolutionDraftRow[]>([
+    { title: '', detail: '' },
+    { title: '', detail: '' },
+  ])
+  const [audience, setAudience] = useState('')
+  const [scope, setScope] = useState<MarketScope>('china')
   const [icpHints, setIcpHints] = useState('')
   const [panelSize, setPanelSize] = useState(12)
   const [model, setModel] = useState<DeepSeekModel>(DEFAULT_MODEL)
+  const [genning, setGenning] = useState(false)
 
   // knowledge base (RAG): chunks live client-side and are passed into /api/ground
   const [kbChunks, setKbChunks] = useState<UserChunk[]>([])
@@ -67,6 +77,15 @@ export default function Page() {
 
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState('')
+
+  const [bundle, setBundle] = useState<EvidenceBundle | null>(null)
+  const [liveUsed, setLiveUsed] = useState(false)
+  const [panel, setPanel] = useState<PanelResult | null>(null)
+  const [verdict, setVerdict] = useState<Verdict | null>(null)
+  // the solutions (with ids) that were actually sent into the run, so result cards map ids → titles
+  const [solutionsRun, setSolutionsRun] = useState<Solution[]>([])
+
+  const running = stage === 'researching' || stage === 'voting' || stage === 'deciding'
 
   // restore + persist the knowledge base (best-effort; embeddings can exceed quota)
   useEffect(() => {
@@ -97,24 +116,33 @@ export default function Page() {
   function clearKb() {
     setKbChunks([]); persistKb([])
   }
-  // one-click: fill the form with the localized sample question
+
+  // ----- solution editor helpers -----
+  function setSolutionField(i: number, field: keyof SolutionDraftRow, value: string) {
+    setSolutions((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)))
+  }
+  function addSolution() {
+    setSolutions((prev) => [...prev, { title: '', detail: '' }])
+  }
+  function removeSolution(i: number) {
+    setSolutions((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)))
+  }
+
+  // one-click: fill the whole form with the localized sample case
   function fillSample() {
-    setIdea(t.sample.idea)
-    setMarket(t.sample.market)
+    setSituation(t.sample.situation)
+    setProblem(t.sample.problem)
+    setSolutions(t.sample.solutions.map((s) => ({ title: s.title, detail: s.detail })))
+    setAudience(t.sample.audience)
     setScope(t.sample.scope)
     setIcpHints(t.sample.icpHints)
     setError('')
   }
+
   // group chunks by source document for the chip list
   const kbSources = Array.from(
     kbChunks.reduce((m, c) => m.set(c.source, (m.get(c.source) ?? 0) + 1), new Map<string, number>())
   ).map(([source, count]) => ({ source, count }))
-  const [bundle, setBundle] = useState<EvidenceBundle | null>(null)
-  const [liveUsed, setLiveUsed] = useState(false)
-  const [panel, setPanel] = useState<PanelResult | null>(null)
-  const [verdict, setVerdict] = useState<Verdict | null>(null)
-
-  const running = stage === 'grounding' || stage === 'paneling' || stage === 'judging'
 
   async function post<T>(url: string, body: unknown): Promise<T> {
     const res = await fetch(url, {
@@ -126,29 +154,52 @@ export default function Page() {
     return res.json() as Promise<T>
   }
 
-  async function run() {
-    if (!idea.trim() || !market.trim()) {
-      setError(t.errFill)
-      return
+  // assign stable ids (A, B, C…) by index to the non-empty solutions
+  function assembleSolutions(): Solution[] {
+    return solutions
+      .map((s) => ({ title: s.title.trim(), detail: s.detail.trim() }))
+      .filter((s) => s.title)
+      .map((s, i) => ({ id: String.fromCharCode(65 + i), ...s }))
+  }
+
+  async function genSolutions() {
+    if (!situation.trim() || !problem.trim()) { setError(t.errFill); return }
+    if (genning || running) return
+    setGenning(true); setError('')
+    try {
+      const r = await post<{ solutions: SolutionDraft[] }>('/api/solutions', {
+        situation, problem, audience, scope, icpHints, model, lang, count: 3,
+      })
+      setSolutions(r.solutions.map((s) => ({ title: s.title, detail: s.detail ?? '' })))
+    } catch (e: any) {
+      setError(e?.message ?? t.errGen)
+    } finally {
+      setGenning(false)
     }
+  }
+
+  async function run() {
+    if (!situation.trim() || !problem.trim()) { setError(t.errFill); return }
+    const sols = assembleSolutions()
+    if (sols.length < 2) { setError(t.errSolutions); return }
+
     setError('')
     setBundle(null); setPanel(null); setVerdict(null)
-    const input: IdeaInput = { idea, market, scope, icpHints, panelSize, model, lang }
+    setSolutionsRun(sols)
+    const input: DecisionInput = { situation, problem, solutions: sols, audience, scope, icpHints, panelSize, model, lang }
 
     try {
-      setStage('grounding')
+      setStage('researching')
       const g = await post<{ bundle: EvidenceBundle; live: boolean }>('/api/ground',
         { ...input, userChunks: kbChunks })
       setBundle(g.bundle); setLiveUsed(g.live)
 
-      setStage('paneling')
+      setStage('voting')
       const p = await post<PanelResult>('/api/panel', { input, bundle: g.bundle })
       setPanel(p)
 
-      setStage('judging')
-      const v = await post<{ verdict: Verdict }>('/api/verdict', {
-        input, bundle: g.bundle, stats: p.stats,
-      })
+      setStage('deciding')
+      const v = await post<{ verdict: Verdict }>('/api/verdict', { input, bundle: g.bundle, tally: p.tally })
       setVerdict(v.verdict)
       setStage('done')
     } catch (e: any) {
@@ -157,16 +208,22 @@ export default function Page() {
     }
   }
 
+  const solTitle = (id: string) => solutionsRun.find((s) => s.id === id)?.title ?? id
+
   function exportJsonl() {
     if (!bundle || !panel || !verdict) return
+    const solList = solutionsRun.map((s) => `[${s.id}] ${s.title}${s.detail ? `：${s.detail}` : ''}`).join('\n')
+    const voteSummary = panel.tally
+      .map((tt) => `[${tt.solutionId}] ${tt.title} 首选${tt.firstChoiceVotes}票/${tt.votePct}%, 均分${tt.meanScore}/5`)
+      .join('；')
     const userMsg =
-      t.exportIdea(idea, market, t.scope[scope]) +
-      t.exportMarket(bundle.marketRead, t.supplyVerdict[bundle.supplyVerdict]) +
-      t.exportDemand(panel.stats.mean, panel.stats.positivePct, panel.stats.topObjections.map((o) => o.objection).join('; '))
+      t.exportSituation(situation, problem, audience, t.scope[scope]) +
+      t.exportSolutions(solList) +
+      t.exportVote(voteSummary)
     const assistant =
-      t.exportConclusion(t.call[verdict.call]) +
+      t.exportDecision(solTitle(verdict.recommendedId), t.decisiveness[verdict.decisiveness]) +
       t.exportReason(verdict.rationale) +
-      (verdict.contradiction ? t.exportConflict(verdict.contradiction) : '') +
+      (verdict.tradeoff ? t.exportTradeoff(verdict.tradeoff) : '') +
       t.exportCheapest(verdict.cheapestExperiment) +
       t.exportPlan(verdict.ninetyDayPlan.map((s) => `${s.week} ${s.action} (KPI: ${s.kpi})`).join('; '))
     const rec: SftRecord = {
@@ -179,7 +236,7 @@ export default function Page() {
     const blob = new Blob([JSON.stringify(rec)], { type: 'application/jsonl' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'launchlens-validation.jsonl'
+    a.download = 'launchlens-decision.jsonl'
     a.click()
   }
 
@@ -202,20 +259,20 @@ export default function Page() {
             <Languages className="w-300 h-300" /> {t.langToggle}
           </button>
         </div>
-        <p className="text-300 text-roboflow-600 max-w-[640px] leading-relaxed">
-          {t.intro1}<span className="font-semibold text-cosmicore">{t.marketIntel}</span>
-          {t.intro2}<span className="font-semibold text-cosmicore">{t.synthPanel}</span>
+        <p className="text-300 text-roboflow-600 max-w-[680px] leading-relaxed">
+          {t.intro1}<span className="font-semibold text-cosmicore">{t.marketResearch}</span>
+          {t.intro2}<span className="font-semibold text-cosmicore">{t.customerVote}</span>
           {t.intro3}<span className="font-display italic">{t.introEmph}</span>
         </p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-600 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-600 items-start">
         {/* ---------------- Input column ---------------- */}
         <section className="lg:sticky lg:top-500 rounded-400 bg-mochimalist shadow-floating p-600 space-y-500">
-          <Field label={t.ideaLabel}>
+          <Field label={t.situationLabel}>
             <textarea
-              value={idea} onChange={(e) => setIdea(e.target.value)} rows={3}
-              placeholder={t.ideaPlaceholder}
+              value={situation} onChange={(e) => setSituation(e.target.value)} rows={3}
+              placeholder={t.situationPlaceholder}
               className="w-full resize-none rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
             <button type="button" onClick={fillSample} disabled={running}
@@ -224,13 +281,65 @@ export default function Page() {
               <span className="text-roboflow-500 font-normal">{t.sampleLabel}：</span>{t.sampleChip}
             </button>
           </Field>
-          <Field label={t.marketLabel}>
+
+          <Field label={t.problemLabel}>
+            <textarea
+              value={problem} onChange={(e) => setProblem(e.target.value)} rows={2}
+              placeholder={t.problemPlaceholder}
+              className="w-full resize-none rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
+            />
+          </Field>
+
+          {/* solutions editor */}
+          <Field label={t.solutionsLabel}>
+            <div className="space-y-200">
+              {solutions.map((s, i) => (
+                <div key={i} className="rounded-200 border border-roboflow-200 bg-roboflow-50 p-200">
+                  <div className="flex items-center gap-200">
+                    <span className="grid place-items-center w-600 h-600 rounded-100 bg-cosmicore text-mochimalist text-100 font-bold shrink-0">
+                      {t.optionLetter(i)}
+                    </span>
+                    <input
+                      value={s.title} onChange={(e) => setSolutionField(i, 'title', e.target.value)}
+                      placeholder={t.solutionTitlePlaceholder}
+                      className="flex-1 min-w-0 rounded-100 border border-roboflow-200 bg-mochimalist px-200 py-100 text-200 outline-none focus:border-pushpin-300 transition-colors"
+                    />
+                    <button type="button" onClick={() => removeSolution(i)} disabled={solutions.length <= 1}
+                      aria-label={t.removeSolution}
+                      className="grid place-items-center w-600 h-600 rounded-100 text-roboflow-400 hover:text-pushpin-500 disabled:opacity-30 transition-colors shrink-0">
+                      <Trash2 className="w-300 h-300" />
+                    </button>
+                  </div>
+                  <input
+                    value={s.detail} onChange={(e) => setSolutionField(i, 'detail', e.target.value)}
+                    placeholder={t.solutionDetailPlaceholder}
+                    className="w-full mt-100 rounded-100 border border-transparent bg-transparent px-200 py-100 text-100 text-roboflow-600 outline-none focus:border-roboflow-200 focus:bg-mochimalist transition-colors"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-200 mt-200">
+              <button type="button" onClick={addSolution} disabled={running}
+                className="flex-1 flex items-center justify-center gap-100 rounded-200 border border-roboflow-200 bg-mochimalist px-300 py-200 text-100 font-semibold text-roboflow-600 hover:border-pushpin-300 hover:text-cosmicore disabled:opacity-50 transition-colors">
+                <Plus className="w-300 h-300" />{t.addSolution}
+              </button>
+              <button type="button" onClick={genSolutions} disabled={genning || running}
+                className="flex-1 flex items-center justify-center gap-100 rounded-200 bg-cosmicore text-mochimalist px-300 py-200 text-100 font-semibold hover:bg-roboflow-800 disabled:opacity-50 transition-colors">
+                {genning ? <Loader2 className="w-300 h-300 animate-spin" /> : <Sparkles className="w-300 h-300" />}
+                {genning ? t.genningSolutions : t.genSolutions}
+              </button>
+            </div>
+            <p className="text-100 text-roboflow-400 mt-200">{t.solutionsHint}</p>
+          </Field>
+
+          <Field label={t.audienceLabel}>
             <input
-              value={market} onChange={(e) => setMarket(e.target.value)}
-              placeholder={t.marketPlaceholder}
+              value={audience} onChange={(e) => setAudience(e.target.value)}
+              placeholder={t.audiencePlaceholder}
               className="w-full rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
           </Field>
+
           <Field label={t.scopeLabel}>
             <div className="flex gap-100 p-100 rounded-200 bg-roboflow-100">
               {SCOPE_VALUES.map((s) => (
@@ -243,6 +352,7 @@ export default function Page() {
               ))}
             </div>
           </Field>
+
           <Field label={t.icpLabel}>
             <input
               value={icpHints} onChange={(e) => setIcpHints(e.target.value)}
@@ -250,6 +360,7 @@ export default function Page() {
               className="w-full rounded-200 border border-roboflow-200 bg-roboflow-50 px-300 py-200 text-200 outline-none focus:border-pushpin-300 transition-colors"
             />
           </Field>
+
           <Field label={t.kbLabel}>
             <div className="flex gap-200">
               <input
@@ -289,11 +400,13 @@ export default function Page() {
               </div>
             )}
           </Field>
+
           <Field label={t.panelLabel(panelSize)}>
             <input type="range" min={6} max={24} step={1} value={panelSize}
               onChange={(e) => setPanelSize(+e.target.value)}
               className="w-full accent-pushpin-450" />
           </Field>
+
           <Field label={t.modelLabel}>
             <div className="flex gap-100 p-100 rounded-200 bg-roboflow-100">
               {MODELS.map((m) => (
@@ -327,9 +440,9 @@ export default function Page() {
         <section className="space-y-600 min-w-0">
           {!bundle && !running && <EmptyState t={t} />}
 
-          {bundle && <SupplyCard bundle={bundle} t={t} />}
-          {panel && <DemandCard panel={panel} t={t} />}
-          {verdict && <VerdictCard verdict={verdict} onExport={exportJsonl} t={t} />}
+          {bundle && <ResearchCard bundle={bundle} t={t} />}
+          {panel && <VoteCard panel={panel} winnerId={panel.winnerId} solTitle={solTitle} t={t} />}
+          {verdict && <DecisionCard verdict={verdict} solTitle={solTitle} onExport={exportJsonl} t={t} />}
         </section>
       </div>
     </main>
@@ -349,11 +462,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function StageRail({ stage, liveUsed, t }: { stage: Stage; liveUsed: boolean; t: Dict }) {
   const steps: { key: Stage; label: string; Icon: any }[] = [
-    { key: 'grounding', label: t.stageGround, Icon: Activity },
-    { key: 'paneling', label: t.stagePanel, Icon: Users },
-    { key: 'judging', label: t.stageJudge, Icon: Scale },
+    { key: 'researching', label: t.stageGround, Icon: Activity },
+    { key: 'voting', label: t.stagePanel, Icon: Users },
+    { key: 'deciding', label: t.stageJudge, Icon: Scale },
   ]
-  const order: Stage[] = ['idle', 'grounding', 'paneling', 'judging', 'done']
+  const order: Stage[] = ['idle', 'researching', 'voting', 'deciding', 'done']
   const cur = order.indexOf(stage)
   if (stage === 'idle') return null
   return (
@@ -369,7 +482,7 @@ function StageRail({ stage, liveUsed, t }: { stage: Stage; liveUsed: boolean; t:
               {active ? <Loader2 className="w-300 h-300 animate-spin" /> : <s.Icon className="w-300 h-300" />}
             </span>
             <span className={done || active ? 'text-cosmicore font-medium' : 'text-roboflow-400'}>{s.label}</span>
-            {s.key === 'grounding' && liveUsed && (
+            {s.key === 'researching' && liveUsed && (
               <span className="text-[10px] px-200 py-[2px] rounded-pill bg-pushpin-50 text-pushpin-450 font-semibold">LIVE</span>
             )}
           </div>
@@ -404,12 +517,12 @@ function Card({ icon, title, sub, children }: { icon: React.ReactNode; title: st
   )
 }
 
-function SupplyCard({ bundle, t }: { bundle: EvidenceBundle; t: Dict }) {
-  const st = SUPPLY_STYLE[bundle.supplyVerdict]
+function ResearchCard({ bundle, t }: { bundle: EvidenceBundle; t: Dict }) {
+  const st = CLIMATE_STYLE[bundle.climate]
   return (
-    <Card icon={<Activity className="w-500 h-500" strokeWidth={1.75} />} title={t.supplyTitle} sub={t.supplySub}>
+    <Card icon={<Activity className="w-500 h-500" strokeWidth={1.75} />} title={t.researchTitle} sub={t.researchSub}>
       <div className={`inline-flex items-center gap-200 rounded-pill px-300 py-100 text-200 font-semibold mb-400 ${st.cls}`}>
-        <st.Icon className="w-300 h-300" /> {t.supplyVerdict[bundle.supplyVerdict]} · {t.confidence} {(bundle.supplyConfidence * 100).toFixed(0)}%
+        <st.Icon className="w-300 h-300" /> {t.climate[bundle.climate]} · {t.confidence} {(bundle.confidence * 100).toFixed(0)}%
       </div>
       <p className="text-300 text-cosmicore leading-relaxed mb-500">{bundle.marketRead}</p>
 
@@ -448,118 +561,114 @@ function SupplyCard({ bundle, t }: { bundle: EvidenceBundle; t: Dict }) {
   )
 }
 
-function DemandCard({ panel, t }: { panel: PanelResult; t: Dict }) {
-  const { stats, responses } = panel
-  const max = Math.max(1, ...Object.values(stats.histogram))
+function VoteCard({ panel, winnerId, solTitle, t }: { panel: PanelResult; winnerId: string; solTitle: (id: string) => string; t: Dict }) {
   return (
-    <Card icon={<Users className="w-500 h-500" strokeWidth={1.75} />} title={t.demandTitle} sub={t.demandSub(stats.n)}>
-      <div className="grid grid-cols-3 gap-300 mb-500">
-        <Stat label={t.statMean} value={`${stats.mean}`} unit="/5" tone="pushpin" />
-        <Stat label={t.statPos} value={`${stats.positivePct}`} unit="%" tone="cosmicore" />
-        <Stat label={t.statNeg} value={`${stats.negativePct}`} unit="%" tone="roboflow" />
-      </div>
-
-      {/* histogram */}
-      <div className="flex items-end gap-300 h-[120px] mb-500 px-200">
-        {(['1', '2', '3', '4', '5'] as const).map((k) => (
-          <div key={k} className="flex-1 flex flex-col items-center gap-100">
-            <span className="text-100 text-roboflow-500">{stats.histogram[k]}</span>
-            <div className="w-full rounded-100 bg-pushpin-450/85"
-              style={{ height: `${(stats.histogram[k] / max) * 88}px`, minHeight: 2 }} />
-            <span className="text-100 text-roboflow-400">{k}★</span>
-          </div>
+    <Card icon={<Users className="w-500 h-500" strokeWidth={1.75} />} title={t.voteTitle} sub={t.voteSub(panel.n)}>
+      {/* tally — winner first */}
+      <div className="space-y-300 mb-500">
+        {panel.tally.map((row) => (
+          <TallyRow key={row.solutionId} row={row} isWinner={row.solutionId === winnerId} n={panel.n} t={t} />
         ))}
       </div>
 
-      {/* segments */}
-      {stats.bySegment.length > 0 && (
-        <div className="mb-500">
-          <div className="text-100 font-semibold text-roboflow-600 mb-200">{t.segTitle}</div>
-          <div className="space-y-100">
-            {stats.bySegment.map((s, i) => (
-              <div key={i} className="flex items-center gap-300 text-100">
-                <span className="w-[140px] truncate text-cosmicore">{s.segment}</span>
-                <div className="flex-1 h-200 rounded-pill bg-roboflow-100 overflow-hidden">
-                  <div className="h-full bg-cosmicore" style={{ width: `${(s.mean / 5) * 100}%` }} />
-                </div>
-                <span className="text-roboflow-500 w-[64px] text-right">{s.mean}/5 · n{s.n}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* top objections */}
-      {stats.topObjections.length > 0 && (
-        <div className="mb-500">
-          <div className="text-100 font-semibold text-roboflow-600 mb-200">{t.objTitle}</div>
-          <div className="flex flex-wrap gap-200">
-            {stats.topObjections.map((o, i) => (
-              <span key={i} className="text-100 px-300 py-100 rounded-pill bg-pushpin-50 text-pushpin-500">
-                {o.objection} ×{o.count}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* persona grid */}
+      {/* per-agent votes */}
       <details className="group">
         <summary className="cursor-pointer text-100 font-semibold text-roboflow-600 select-none">
-          {t.personaToggle(responses.length)}
+          {t.agentsToggle(panel.agents.length)}
         </summary>
         <div className="grid sm:grid-cols-2 gap-300 mt-300">
-          {responses.map((p, i) => <PersonaCard key={i} p={p} />)}
+          {panel.agents.map((a, i) => <AgentCard key={i} a={a} solTitle={solTitle} t={t} />)}
         </div>
       </details>
     </Card>
   )
 }
 
-function PersonaCard({ p }: { p: PersonaResponse }) {
+function TallyRow({ row, isWinner, n, t }: { row: SolutionTally; isWinner: boolean; n: number; t: Dict }) {
+  return (
+    <div className={`rounded-300 p-400 border ${isWinner ? 'border-pushpin-300 bg-pushpin-0' : 'border-roboflow-200 bg-roboflow-50'}`}>
+      <div className="flex items-center gap-200 mb-200">
+        <span className={`grid place-items-center w-600 h-600 rounded-100 text-100 font-bold shrink-0 ${isWinner ? 'bg-pushpin-450 text-mochimalist' : 'bg-cosmicore text-mochimalist'}`}>
+          {row.solutionId}
+        </span>
+        <span className="text-200 font-semibold text-cosmicore flex-1 min-w-0 truncate">{row.title}</span>
+        {isWinner && (
+          <span className="inline-flex items-center gap-100 text-[10px] px-200 py-[2px] rounded-pill bg-pushpin-450 text-mochimalist font-bold shrink-0">
+            <Sparkles className="w-300 h-300" />{t.winnerBadge}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-300">
+        <div className="flex-1 h-300 rounded-pill bg-roboflow-100 overflow-hidden">
+          <div className={`h-full ${isWinner ? 'bg-pushpin-450' : 'bg-roboflow-400'}`} style={{ width: `${(row.firstChoiceVotes / Math.max(1, n)) * 100}%`, minWidth: row.firstChoiceVotes ? 6 : 0 }} />
+        </div>
+        <span className="text-100 text-roboflow-600 shrink-0 w-[150px] text-right">
+          {row.firstChoiceVotes} {t.votesLabel} · {t.meanLabel} {row.meanScore}/5
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function AgentCard({ a, solTitle, t }: { a: AgentVote; solTitle: (id: string) => string; t: Dict }) {
   return (
     <div className="rounded-300 bg-roboflow-50 p-400">
       <div className="flex items-center justify-between mb-200">
         <div className="min-w-0">
-          <div className="text-200 font-semibold text-cosmicore truncate">{p.name}</div>
-          <div className="text-100 text-roboflow-500 truncate">{p.archetype}</div>
+          <div className="text-200 font-semibold text-cosmicore truncate">{a.name}</div>
+          <div className="text-100 text-roboflow-500 truncate">{a.archetype}</div>
         </div>
-        <div className="text-300 font-bold text-pushpin-450 shrink-0 ml-200">{p.score}★</div>
+        <div className="text-100 font-bold text-pushpin-450 shrink-0 ml-200 flex items-center gap-100">
+          <span className="text-roboflow-400 font-normal">{t.agentPick}</span>
+          <span className="grid place-items-center w-500 h-500 rounded-100 bg-pushpin-450 text-mochimalist">{a.pick}</span>
+        </div>
       </div>
-      <p className="text-100 text-roboflow-600 leading-relaxed mb-200">{p.justification}</p>
-      <div className="text-100 text-pushpin-500 flex gap-200">
-        <AlertTriangle className="w-300 h-300 mt-[1px] shrink-0" /><span>{p.objection}</span>
-      </div>
+      <div className="text-100 text-roboflow-500 mb-200 truncate">{solTitle(a.pick)}</div>
+      <p className="text-100 text-roboflow-600 leading-relaxed mb-200">{a.reasoning}</p>
+      {a.objection && (
+        <div className="text-100 text-pushpin-500 flex gap-200">
+          <AlertTriangle className="w-300 h-300 mt-[1px] shrink-0" /><span>{a.objection}</span>
+        </div>
+      )}
     </div>
   )
 }
 
-function Stat({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone: 'pushpin' | 'cosmicore' | 'roboflow' }) {
-  const c = tone === 'pushpin' ? 'text-pushpin-450' : tone === 'cosmicore' ? 'text-cosmicore' : 'text-roboflow-600'
+function DecisionCard({ verdict, solTitle, onExport, t }: { verdict: Verdict; solTitle: (id: string) => string; onExport: () => void; t: Dict }) {
+  const st = DECISIVE_STYLE[verdict.decisiveness]
   return (
-    <div className="rounded-300 bg-roboflow-50 p-400 text-center">
-      <div className={`text-500 font-bold leading-none ${c}`}>{value}<span className="text-200 font-normal text-roboflow-400">{unit}</span></div>
-      <div className="text-100 text-roboflow-500 mt-200">{label}</div>
-    </div>
-  )
-}
-
-function VerdictCard({ verdict, onExport, t }: { verdict: Verdict; onExport: () => void; t: Dict }) {
-  const st = CALL_STYLE[verdict.call]
-  return (
-    <Card icon={<Scale className="w-500 h-500" strokeWidth={1.75} />} title={t.verdictTitle} sub={t.verdictSub}>
-      <div className={`inline-flex items-center gap-200 rounded-200 px-400 py-200 text-300 font-bold mb-400 shadow-raised ${st.cls}`}>
-        <st.Icon className="w-400 h-400" /> {t.call[verdict.call]}
+    <Card icon={<Scale className="w-500 h-500" strokeWidth={1.75} />} title={t.decisionTitle} sub={t.decisionSub}>
+      <div className="rounded-300 bg-cosmicore text-mochimalist p-500 mb-400">
+        <div className="flex items-center gap-200 mb-200">
+          <span className="text-100 uppercase tracking-wide text-mochimalist/60 font-semibold">{t.recommendLabel}</span>
+          <span className={`inline-flex items-center gap-100 rounded-pill px-200 py-[2px] text-[10px] font-bold ${st.cls}`}>
+            <st.Icon className="w-300 h-300" />{t.decisiveness[verdict.decisiveness]}
+          </span>
+        </div>
+        <div className="flex items-center gap-300">
+          <span className="grid place-items-center w-900 h-900 rounded-200 bg-pushpin-450 text-mochimalist text-400 font-bold shrink-0">{verdict.recommendedId}</span>
+          <span className="text-500 font-bold leading-tight">{solTitle(verdict.recommendedId)}</span>
+        </div>
       </div>
 
       <p className="text-300 text-cosmicore leading-relaxed mb-400">{verdict.rationale}</p>
 
-      {verdict.contradiction && (
+      {verdict.tradeoff && (
         <div className="flex items-start gap-300 rounded-300 bg-pushpin-50 p-400 mb-400">
           <AlertTriangle className="w-400 h-400 text-pushpin-450 shrink-0 mt-[2px]" />
           <div>
-            <div className="text-100 font-bold text-pushpin-500 mb-100">{t.contradictionLabel}</div>
-            <p className="text-200 text-roboflow-700">{verdict.contradiction}</p>
+            <div className="text-100 font-bold text-pushpin-500 mb-100">{t.tradeoffLabel}</div>
+            <p className="text-200 text-roboflow-700">{verdict.tradeoff}</p>
+          </div>
+        </div>
+      )}
+
+      {verdict.runnerUpId && (
+        <div className="flex items-center gap-300 rounded-300 bg-roboflow-50 p-400 mb-400">
+          <span className="grid place-items-center w-600 h-600 rounded-100 bg-roboflow-300 text-mochimalist text-100 font-bold shrink-0">{verdict.runnerUpId}</span>
+          <div>
+            <div className="text-100 font-bold text-roboflow-600 mb-[1px]">{t.runnerUpLabel}</div>
+            <p className="text-200 text-cosmicore">{solTitle(verdict.runnerUpId)}</p>
           </div>
         </div>
       )}

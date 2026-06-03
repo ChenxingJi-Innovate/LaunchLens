@@ -1,7 +1,9 @@
 // LaunchLens shared types.
-// The product fuses a SUPPLY-side read (StratSquad-style grounded market intelligence)
-// with a DEMAND-side simulation (TinyTroupe-style synthetic customer panel), then forces
-// one honest verdict through a contradiction meta-judge.
+// The product turns a business decision into a vote: the user describes a SITUATION and the
+// PROBLEM they face, supplies (or asks the AI to generate) a few candidate SOLUTIONS, the engine
+// runs a grounded MARKET RESEARCH pass, then spins up a panel of imagined CUSTOMER AGENTS who each
+// score every solution and pick one. A decision judge tallies the vote into the single business
+// move that makes the most sense.
 
 // ---------- Models ----------
 // DeepSeek model IDs verified live from GET https://api.deepseek.com/models
@@ -16,21 +18,38 @@ export const MODELS: { id: DeepSeekModel; label: string; hint: string }[] = [
 
 export const DEFAULT_MODEL: DeepSeekModel = 'deepseek-v4-flash'
 
-// ---------- PM input ----------
+// ---------- User input ----------
 
 export type MarketScope = 'china' | 'global' | 'overseas'
 
-export interface IdeaInput {
-  idea: string // one-line product idea
-  market: string // free-text target market, e.g. "东南亚手游玩家"
+// One candidate move the customer panel will vote on. Ids are stable single letters
+// (A, B, C, ...) assigned by index at run time so agents can reference a solution unambiguously.
+export interface Solution {
+  id: string // 'A' | 'B' | 'C' ... assigned at run time
+  title: string // short label, e.g. "降价 30% 抢量"
+  detail: string // 1-2 sentences describing what this move actually is
+}
+
+export interface DecisionInput {
+  situation: string // where the business is right now (context)
+  problem: string // the specific decision / problem being faced
+  solutions: Solution[] // 2-5 candidate moves to vote on
+  audience: string // who the customers are, free text e.g. "东南亚手游玩家"
   scope: MarketScope
-  icpHints?: string // optional ideal-customer hints to steer audience sampling
-  panelSize: number // how many synthetic customers to simulate (default 12)
+  icpHints?: string // optional ideal-customer hints to steer who gets sampled
+  panelSize: number // how many customer agents to simulate (default 12)
   model?: DeepSeekModel // which DeepSeek tier to run the whole pipeline on
   lang?: 'zh' | 'en' // output language for all generated content
 }
 
-// ---------- (A) Ground: supply-side evidence ----------
+// ---------- (Solutions) AI-suggested candidate moves ----------
+
+export interface SolutionDraft {
+  title: string
+  detail: string
+}
+
+// ---------- (A) Research: grounded market read ----------
 
 export type SourceTier =
   | 'internal' // from the user's own attached knowledge base (highest trust)
@@ -68,52 +87,62 @@ export interface EvidenceBundle {
   marketRead: string // 2-3 sentence synthesis of where the market is moving
   experts: ExpertRead[]
   sources: EvidenceSource[]
-  supplyVerdict: 'tailwind' | 'mixed' | 'headwind' // is the market moving toward this?
-  supplyConfidence: number // 0..1
+  climate: 'tailwind' | 'mixed' | 'headwind' // overall market climate for this problem space
+  confidence: number // 0..1
 }
 
-// ---------- (B/C) Panel: demand-side synthetic customers ----------
+// ---------- (B/C) Panel: customer agents vote on the solutions ----------
 
-export interface PersonaResponse {
+export interface SolutionScore {
+  solutionId: string
+  score: 1 | 2 | 3 | 4 | 5 // how well this move serves THIS customer (5 = would love it)
+}
+
+export interface AgentVote {
   name: string
   archetype: string // short label, e.g. "价格敏感的休闲玩家"
-  segment: string // which market segment this persona belongs to
+  segment: string // which customer segment this agent belongs to
   believability: number // 0..1, TinyPersonValidator-style coherence gate
-  score: 1 | 2 | 3 | 4 | 5 // purchase / adoption propensity
-  justification: string // why, ideally citing the grounded evidence
-  objection: string // single biggest reason they would NOT buy
+  scores: SolutionScore[] // one score per solution
+  pick: string // solutionId this agent would choose as best
+  reasoning: string // first-person why they picked it, ideally citing the evidence
+  objection: string // their biggest concern about that pick
+}
+
+// Server-side tally for one solution across the whole panel.
+export interface SolutionTally {
+  solutionId: string
+  title: string
+  firstChoiceVotes: number // how many agents picked this as their #1
+  votePct: number // share of the panel that picked it #1
+  meanScore: number // mean score this solution got across all agents (1..5)
+  positivePct: number // share of agents scoring it 4-5
+  bySegment: { segment: string; meanScore: number; firstChoiceVotes: number; n: number }[]
 }
 
 export interface PanelResult {
-  responses: PersonaResponse[]
-  // demand stats derived server-side so the UI and verdict agree on one source of truth
-  stats: DemandStats
+  agents: AgentVote[]
+  tally: SolutionTally[] // sorted winner-first
+  winnerId: string // solutionId with the most first-choice votes (vote winner)
+  n: number // number of agents who voted
 }
 
-export interface DemandStats {
-  n: number
-  mean: number // mean propensity 1..5
-  positivePct: number // share scoring 4-5
-  neutralPct: number // share scoring 3
-  negativePct: number // share scoring 1-2
-  histogram: Record<'1' | '2' | '3' | '4' | '5', number>
-  topObjections: { objection: string; count: number }[]
-  bySegment: { segment: string; mean: number; positivePct: number; n: number }[]
-}
+// ---------- (D) Decision: the judge that turns the vote into one move ----------
 
-// ---------- (D) Verdict: contradiction meta-judge ----------
-
-export type FinalCall = 'validated' | 'conditional' | 'kill'
+// How decisive the panel was — drives the headline tone and whether to hedge.
+export type Decisiveness = 'clear' | 'narrow' | 'split'
 
 export interface Verdict {
-  call: FinalCall
-  rationale: string // why this call, naming the supply/demand agreement or clash
-  contradiction: string | null // the specific supply-vs-demand clash, if any
-  cheapestExperiment: string // the single cheapest real test that would resolve doubt
+  recommendedId: string // the solution the judge recommends (usually the vote winner)
+  decisiveness: Decisiveness
+  rationale: string // why this is the best business move, naming the vote pattern
+  runnerUpId: string | null // the close contender worth keeping on the table
+  tradeoff: string | null // what you give up by choosing the recommended move
+  cheapestExperiment: string // the single cheapest real test before committing
   ninetyDayPlan: { week: string; action: string; kpi: string }[]
 }
 
-// ---------- Export (SFT/DPO JSONL) ----------
+// ---------- Export (SFT JSONL) ----------
 
 export interface SftRecord {
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[]

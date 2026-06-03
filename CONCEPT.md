@@ -1,8 +1,17 @@
-# LaunchLens — Product Idea Validation Platform for PMs
+# LaunchLens — Customer-Vote Business Decision Tool
+
+> **Product pivot (2026-06-03):** LaunchLens is now a *business decision* tool, not a single-idea
+> validator. The user describes a situation + a problem and gives several candidate solutions (or
+> has the AI draft them); the imagined customer panel now COMPARES the solutions (scores each +
+> first-choice vote) and a decision judge picks the winning move. The architecture below is the
+> origin — the grounding seam, the four research lenses, the TinyTroupe panel and credibility tiers
+> all still hold; only the demand side changed from "rate one idea 1-5" to "vote across solutions",
+> and the meta-judge changed from validated/conditional/kill to a recommended solution. Read this
+> for the technical rationale; read `CLAUDE.md` for the current pipeline.
 
 A sibling project that fuses **StratSquad** (grounded supply-side market intelligence) with
-**TinyTroupe** (synthetic demand-side customer simulation) into one decision: *should we
-build this product?*
+**TinyTroupe** (synthetic demand-side customer simulation) into one decision: *which move should we
+make?*
 
 > Author context: Ji Chenxing. Same house pipeline as StyleForge / SQLForge / AestheticForge:
 > `Reference/Schema → Profile Extraction → Generation → Rating → Export`.
