@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     if (!situation || !problem) return new Response('Missing situation/problem', { status: 400 })
 
     const lang = body.lang === 'en' ? 'en' : 'zh'
-    const count = Math.max(2, Math.min(5, body.count ?? 3))
+    const count = Math.max(1, Math.min(5, body.count ?? 3))
 
     const user = `经营处境：${situation}
 要做的决策 / 面临的问题：${problem}

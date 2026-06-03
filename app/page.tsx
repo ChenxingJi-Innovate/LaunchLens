@@ -27,6 +27,9 @@ type Stage = 'idle' | 'researching' | 'voting' | 'deciding' | 'done'
 
 const SCOPE_VALUES: MarketScope[] = ['china', 'global', 'overseas']
 
+const MAX_SOLUTIONS = 10 // most candidate solutions the list can hold
+const MAX_GEN = 5 // most options AI drafts in a single click
+
 // Style only (colour + icon); the human label is pulled from the dictionary per language.
 const CLIMATE_STYLE: Record<EvidenceBundle['climate'], { cls: string; Icon: any }> = {
   tailwind: { cls: 'text-pushpin-450 bg-pushpin-50', Icon: TrendingUp },
@@ -69,6 +72,8 @@ export default function Page() {
   const [panelSize, setPanelSize] = useState(12)
   const [model, setModel] = useState<DeepSeekModel>(DEFAULT_MODEL)
   const [genning, setGenning] = useState(false)
+  const [genCount, setGenCount] = useState(3) // how many options AI drafts per click (1..MAX_GEN)
+  const [genError, setGenError] = useState('') // shown right under the solutions editor, not far down by Run
 
   // knowledge base (RAG): chunks live client-side and are passed into /api/ground
   const [kbChunks, setKbChunks] = useState<UserChunk[]>([])
@@ -122,7 +127,7 @@ export default function Page() {
     setSolutions((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)))
   }
   function addSolution() {
-    setSolutions((prev) => [...prev, { title: '', detail: '' }])
+    setSolutions((prev) => (prev.length >= MAX_SOLUTIONS ? prev : [...prev, { title: '', detail: '' }]))
   }
   function removeSolution(i: number) {
     setSolutions((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)))
@@ -136,7 +141,7 @@ export default function Page() {
     setAudience(t.sample.audience)
     setScope(t.sample.scope)
     setIcpHints(t.sample.icpHints)
-    setError('')
+    setError(''); setGenError('')
   }
 
   // group chunks by source document for the chip list
@@ -163,16 +168,27 @@ export default function Page() {
   }
 
   async function genSolutions() {
-    if (!situation.trim() || !problem.trim()) { setError(t.errFill); return }
     if (genning || running) return
-    setGenning(true); setError('')
+    if (!situation.trim() || !problem.trim()) { setGenError(t.errFill); return }
+    // how many we can still add without exceeding the 10-solution store
+    const keptCount = solutions.filter((s) => s.title.trim() || s.detail.trim()).length
+    const room = MAX_SOLUTIONS - keptCount
+    if (room <= 0) { setGenError(t.errMaxSolutions); return }
+    const count = Math.min(Math.max(1, Math.min(MAX_GEN, genCount || 1)), room)
+    setGenning(true); setGenError('')
     try {
       const r = await post<{ solutions: SolutionDraft[] }>('/api/solutions', {
-        situation, problem, audience, scope, icpHints, model, lang, count: 3,
+        situation, problem, audience, scope, icpHints, model, lang, count,
       })
-      setSolutions(r.solutions.map((s) => ({ title: s.title, detail: s.detail ?? '' })))
+      const added = r.solutions.map((s) => ({ title: s.title, detail: s.detail ?? '' }))
+      // ADD to what the user already wrote, never replace it: keep every filled row, append the
+      // drafts, drop only blank rows, and cap the total at MAX_SOLUTIONS.
+      setSolutions((prev) => {
+        const kept = prev.filter((s) => s.title.trim() || s.detail.trim())
+        return [...kept, ...added].slice(0, MAX_SOLUTIONS)
+      })
     } catch (e: any) {
-      setError(e?.message ?? t.errGen)
+      setGenError(e?.message ?? t.errGen)
     } finally {
       setGenning(false)
     }
@@ -183,7 +199,7 @@ export default function Page() {
     const sols = assembleSolutions()
     if (sols.length < 2) { setError(t.errSolutions); return }
 
-    setError('')
+    setError(''); setGenError('')
     setBundle(null); setPanel(null); setVerdict(null)
     setSolutionsRun(sols)
     const input: DecisionInput = { situation, problem, solutions: sols, audience, scope, icpHints, panelSize, model, lang }
@@ -319,17 +335,29 @@ export default function Page() {
               ))}
             </div>
             <div className="flex gap-200 mt-200">
-              <button type="button" onClick={addSolution} disabled={running}
+              <button type="button" onClick={addSolution} disabled={running || solutions.length >= MAX_SOLUTIONS}
                 className="flex-1 flex items-center justify-center gap-100 rounded-200 border border-roboflow-200 bg-mochimalist px-300 py-200 text-100 font-semibold text-roboflow-600 hover:border-pushpin-300 hover:text-cosmicore disabled:opacity-50 transition-colors">
                 <Plus className="w-300 h-300" />{t.addSolution}
               </button>
+              <input
+                type="number" min={1} max={MAX_GEN} value={genCount} disabled={genning || running}
+                title={t.genCountTitle} aria-label={t.genCountTitle}
+                onChange={(e) => setGenCount(Math.max(1, Math.min(MAX_GEN, Math.floor(+e.target.value) || 1)))}
+                className="w-[56px] shrink-0 rounded-200 border border-roboflow-200 bg-roboflow-50 px-200 py-200 text-200 text-center font-semibold outline-none focus:border-pushpin-300 disabled:opacity-50 transition-colors"
+              />
               <button type="button" onClick={genSolutions} disabled={genning || running}
-                className="flex-1 flex items-center justify-center gap-100 rounded-200 bg-cosmicore text-mochimalist px-300 py-200 text-100 font-semibold hover:bg-roboflow-800 disabled:opacity-50 transition-colors">
+                className="flex-[1.4] flex items-center justify-center gap-100 rounded-200 bg-cosmicore text-mochimalist px-300 py-200 text-100 font-semibold hover:bg-roboflow-800 disabled:opacity-50 transition-colors">
                 {genning ? <Loader2 className="w-300 h-300 animate-spin" /> : <Sparkles className="w-300 h-300" />}
                 {genning ? t.genningSolutions : t.genSolutions}
               </button>
             </div>
-            <p className="text-100 text-roboflow-400 mt-200">{t.solutionsHint}</p>
+            {genError ? (
+              <div className="flex items-start gap-100 text-100 text-pushpin-500 bg-pushpin-50 rounded-200 p-200 mt-200">
+                <AlertTriangle className="w-300 h-300 mt-[2px] shrink-0" />{genError}
+              </div>
+            ) : (
+              <p className="text-100 text-roboflow-400 mt-200">{t.solutionsHint}</p>
+            )}
           </Field>
 
           <Field label={t.audienceLabel}>

@@ -28,6 +28,7 @@ export interface Dict {
   removeSolution: string
   genSolutions: string
   genningSolutions: string
+  genCountTitle: string
   optionLetter: (i: number) => string
   // input — audience & rest
   audienceLabel: string
@@ -63,6 +64,7 @@ export interface Dict {
   errSolutions: string
   errRun: string
   errGen: string
+  errMaxSolutions: string
   scope: Record<MarketScope, string>
   modelHint: Record<DeepSeekModel, string>
   // stage rail
@@ -130,6 +132,7 @@ const zh: Dict = {
   removeSolution: '删除',
   genSolutions: 'AI 生成方案',
   genningSolutions: '生成中…',
+  genCountTitle: '生成条数 1-5',
   optionLetter: (i) => String.fromCharCode(65 + i),
   audienceLabel: '客户群体 (Audience)',
   audiencePlaceholder: '例：18-30 岁城市白领与学生',
@@ -167,6 +170,7 @@ const zh: Dict = {
   errSolutions: '请至少给出 2 个候选方案（可让 AI 生成）',
   errRun: '运行失败',
   errGen: '方案生成失败',
+  errMaxSolutions: '最多保存 10 个方案，先删掉一些再生成',
   scope: { china: '中国', global: '全球', overseas: '海外' },
   modelHint: { 'deepseek-v4-flash': '更快 · 推荐', 'deepseek-v4-pro': '更细致 · 较慢' },
   stageGround: '市场调研',
@@ -229,6 +233,7 @@ const en: Dict = {
   removeSolution: 'Remove',
   genSolutions: 'AI draft options',
   genningSolutions: 'Drafting…',
+  genCountTitle: 'Draft how many (1-5)',
   optionLetter: (i) => String.fromCharCode(65 + i),
   audienceLabel: 'Audience',
   audiencePlaceholder: 'e.g. Urban white-collar workers and students, ages 18-30',
@@ -266,6 +271,7 @@ const en: Dict = {
   errSolutions: 'Please give at least 2 candidate solutions (AI can draft them)',
   errRun: 'Run failed',
   errGen: 'Drafting options failed',
+  errMaxSolutions: 'You can store up to 10 solutions; remove some first',
   scope: { china: 'China', global: 'Global', overseas: 'Overseas' },
   modelHint: { 'deepseek-v4-flash': 'Faster · recommended', 'deepseek-v4-pro': 'More detailed · slower' },
   stageGround: 'Market research',
